@@ -1,6 +1,6 @@
 const std = @import("std");
 const t = std.testing;
-const types = @import("Types.zig");
+const types = @import("transit_sql_frontend").Types;
 const q = @import("LogicalQuery.zig");
 const Batch = @import("Batch.zig");
 const Cell = types.Values.Cell;
@@ -46,7 +46,7 @@ test "eager column programs keep the first failing instruction separately for ea
     try t.expectEqual(Batch.Outcome.type_error, physical.outcomes[1]);
     try t.expectEqualDeep(q.Plan.PredicateFailure{ .column = 1, .instruction = 1 }, physical.predicateFailure(0));
     try t.expectEqualDeep(q.Plan.PredicateFailure{ .column = 0, .instruction = 0 }, physical.predicateFailure(1));
-    try t.expectEqual(@import("Finite.zig").Truth.unknown, physical.outcomes[2].truth);
+    try t.expectEqual(@import("transit_sql_frontend").Finite.Truth.unknown, physical.outcomes[2].truth);
     try t.expect(physical.outcomes[3].truth.selects());
     try t.expect(!physical.outcomes[4].truth.selects());
 }
@@ -107,7 +107,7 @@ test "borrowed batch retains five states and recursive payloads without arena ex
 }
 
 test "portable and supported AVX2 agree on masks, every tail and five-state failures" {
-    const finite = @import("Finite.zig");
+    const finite = @import("transit_sql_frontend").Finite;
     const alternatives = [_]types.Values.Alternative{ .{ .counter = 1, .replica = 1, .value = .null }, .{ .counter = 2, .replica = 1, .value = .null } };
     for ([_]Batch.kernels.cpu.Implementation{ .portable, .avx2 }) |implementation| {
         if (implementation == .avx2 and !Batch.kernels.cpu.hasAvx2()) continue;

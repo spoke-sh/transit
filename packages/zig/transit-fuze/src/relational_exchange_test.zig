@@ -1,9 +1,9 @@
 const std = @import("std");
 const t = std.testing;
-const r = @import("Relational.zig");
+const r = @import("transit_sql_frontend").Relational;
 const e = @import("RelationalExecution.zig");
 const x = @import("RelationalExchange.zig");
-const columns = [_]@import("TableSchema.zig").Column{ .{ .id = 1, .name = "k", .type = .int64, .nullable = true }, .{ .id = 2, .name = "v", .type = .int64, .nullable = true } };
+const columns = [_]@import("transit_sql_frontend").TableSchema.Column{ .{ .id = 1, .name = "k", .type = .int64, .nullable = true }, .{ .id = 2, .name = "v", .type = .int64, .nullable = true } };
 const sources = [_]r.Source{
     .{ .alias = "l", .realm = 1, .resource = 101, .catalog = 9, .owner = 7, .schema = .{ .object = 11, .revision = 1, .next_column = 3, .columns = &columns } },
     .{ .alias = "r", .realm = 1, .resource = 202, .catalog = 9, .owner = 8, .schema = .{ .object = 22, .revision = 1, .next_column = 3, .columns = &columns } },
@@ -34,7 +34,7 @@ test "routing colocates equal join keys independent of aliases identities values
     try t.expectError(error.InvalidRelationalSourceRow, x.route(plan, 0, 2, invalid));
 }
 test "routing colocates mixed signed integer keys without narrowing source values" {
-    const types = @import("Types.zig");
+    const types = @import("transit_sql_frontend").Types;
     for ([_]types.Type{ .int8, .int16, .int32, .int64 }) |left_type| {
         for ([_]types.Type{ .int8, .int16, .int32, .int64 }) |right_type| {
             var left_cols = columns;

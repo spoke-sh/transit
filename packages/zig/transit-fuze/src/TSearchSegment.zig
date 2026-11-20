@@ -9,11 +9,11 @@
 const std = @import("std");
 const bitmap = @import("transit_bitmap");
 const protocol = @import("transit_protocol");
-const Collation = @import("Collation.zig");
-const PerfectHash = @import("PerfectHash.zig");
+const Collation = @import("transit_sql_frontend").Collation;
+const PerfectHash = @import("transit_sql_frontend").PerfectHash;
 const SearchOracle = @import("SearchOracle.zig");
-const Types = @import("Types.zig");
-const Values = @import("Values.zig");
+const Types = @import("transit_sql_frontend").Types;
+const Values = @import("transit_sql_frontend").Values;
 
 pub const magic = "TSS1";
 pub const definition = protocol.Growth.definition_bytes;

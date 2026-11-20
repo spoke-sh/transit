@@ -1,9 +1,9 @@
 const std = @import("std");
 const e = std.testing;
-const dml = @import("TableDml.zig");
-const ddl = @import("TableDdl.zig");
-const s = @import("TableSchema.zig");
-const Cell = @import("Types.zig").Values.Cell;
+const dml = @import("transit_sql_frontend").TableDml;
+const ddl = @import("transit_sql_frontend").TableDdl;
+const s = @import("transit_sql_frontend").TableSchema;
+const Cell = @import("transit_sql_frontend").Types.Values.Cell;
 const schema: s.Schema = .{ .object = 7, .revision = 2, .next_column = 10, .columns = &.{
     .{ .id = 3, .name = "id", .type = .int32, .nullable = false },
     .{ .id = 6, .name = "name", .type = .utf8, .max_characters = 5 },
@@ -125,7 +125,7 @@ test "DML binding attributes names qualifiers values and repeated assignments to
         .{ "DELETE FROM missing", error.UnknownSource, "missing" },
     };
     inline for (cases) |case| {
-        var location: @import("Sql.zig").Location = .{};
+        var location: @import("transit_sql_frontend").Sql.Location = .{};
         try e.expectError(case[1], dml.compile(e.allocator, case[0], "people", schema, &location));
         try e.expectEqual(std.mem.indexOf(u8, case[0], case[2]).?, location.offset);
     }

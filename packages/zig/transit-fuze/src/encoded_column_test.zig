@@ -1,8 +1,8 @@
 const std = @import("std");
 const t = std.testing;
-const Types = @import("Types.zig");
-const Values = @import("Values.zig");
-const Schema = @import("TableSchema.zig");
+const Types = @import("transit_sql_frontend").Types;
+const Values = @import("transit_sql_frontend").Values;
+const Schema = @import("transit_sql_frontend").TableSchema;
 const Codecs = @import("PhysicalCodecs.zig");
 const Predicate = @import("ColumnPredicate.zig");
 
@@ -52,7 +52,7 @@ fn prepareWithFailures(allocator: std.mem.Allocator) !void {
     var prepared = try Predicate.PreparedProgram.init(allocator, schema, raw);
     defer prepared.deinit();
     var failure: ?u8 = null;
-    try t.expectEqual(@import("Finite.zig").Truth.true_value, try prepared.truth(schema, &.{.{ .value = .{ .atom = .{ .bytes = "ALPHA" } } }}, &failure));
+    try t.expectEqual(@import("transit_sql_frontend").Finite.Truth.true_value, try prepared.truth(schema, &.{.{ .value = .{ .atom = .{ .bytes = "ALPHA" } } }}, &failure));
 }
 
 test "prepared predicates release partial construction on allocation failure" {
@@ -195,7 +195,7 @@ test "encoded column allocation failures free dictionary and validation workspac
 }
 
 test "encoded column program lowering preserves NULL Boolean order and frozen collation" {
-    const Logical = @import("LogicalPredicate.zig");
+    const Logical = @import("transit_sql_frontend").LogicalPredicate;
     const fields = [_]Schema.Column{ .{ .id = 1, .name = "text", .type = .utf8, .collation = .ascii_ci }, .{ .id = 2, .name = "n", .type = .int64 } };
     const schema: Schema.Schema = .{ .object = 1, .revision = 1, .next_column = 3, .columns = &fields };
     const source = [_]Logical.Program.Instruction{

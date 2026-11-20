@@ -1,12 +1,12 @@
 //! Versioned pure state-query model. Authorization and durable source adapters
 //! belong to transit-query. Borrowed row/plan bytes never outlive their owner.
 const std = @import("std");
-pub const max_columns = 8;
+pub const max_columns = @import("transit_sql_frontend").Finite.max_source_columns;
 pub const max_rows = 8;
 pub const max_cell_bytes = 4096;
 pub const max_conflicts = 8;
-pub const Type = @import("Scalar.zig").Type;
-pub const Kind = @import("Scalar.zig").Kind;
+pub const Type = @import("transit_sql_frontend").Scalar.Type;
+pub const Kind = @import("transit_sql_frontend").Scalar.Kind;
 pub const SourceKind = enum(u8) { kv = 1, table = 2, document = 3 };
 pub const Name = struct {
     bytes: [32]u8 = @splat(0),
@@ -55,10 +55,10 @@ pub const Schema = struct {
         return hash.finalResult();
     }
 };
-pub const Scalar = @import("Scalar.zig").Scalar;
-pub const Alternative = @import("Scalar.zig").Alternative;
-pub const State = @import("Scalar.zig").State;
-pub const Cell = @import("Scalar.zig").Cell;
+pub const Scalar = @import("transit_sql_frontend").Scalar.Scalar;
+pub const Alternative = @import("transit_sql_frontend").Scalar.Alternative;
+pub const State = @import("transit_sql_frontend").Scalar.State;
+pub const Cell = @import("transit_sql_frontend").Scalar.Cell;
 pub const Row = @import("ColumnRows.zig").Native;
 pub const Basis = struct {
     kind: SourceKind,
@@ -98,7 +98,7 @@ pub const Page = struct {
         }
     }
 };
-pub const Truth = @import("Finite.zig").Truth;
+pub const Truth = @import("transit_sql_frontend").Finite.Truth;
 pub const PredicateProgram = @import("PredicateProgram.zig");
 pub const Plan = @import("UnifiedPlan.zig");
 pub const Codec = @import("UnifiedCodec.zig");
@@ -107,7 +107,7 @@ pub const Inspect = @import("UnifiedInspect.zig");
 pub const Stream = @import("UnifiedStream.zig");
 pub const Sql = @import("UnifiedSql.zig");
 test {
-    _ = @import("PredicateTruth.zig");
+    _ = @import("transit_sql_frontend").PredicateTruth;
     _ = PredicateProgram;
     _ = @import("unified_test.zig");
     _ = @import("unified_sql_test.zig");

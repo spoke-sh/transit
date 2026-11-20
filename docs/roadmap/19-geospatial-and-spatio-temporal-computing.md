@@ -147,13 +147,13 @@ passing integrated spatial profile.
 | [M22 immutable Table branches](22-branches-merges-and-restore.md#local-table-branch-increment) | Named read-only single-Table branches retain exact definitions, unflushed rows and original outcomes through collection/restart | Preserve spatial descriptors and referenced codec objects in those cuts. Writable branches, three-way spatial merge, catalog-wide snapshots and forward restore remain M21 work. |
 
 Concrete starting points are
-[`Types`](../../packages/zig/transit-fuze/src/Types.zig),
-[`Values`](../../packages/zig/transit-fuze/src/Values.zig),
-[`TableSchema`](../../packages/zig/transit-fuze/src/TableSchema.zig),
+[`Types`](../../packages/zig/transit-sql-frontend/src/Types.zig),
+[`Values`](../../packages/zig/transit-sql-frontend/src/Values.zig),
+[`TableSchema`](../../packages/zig/transit-sql-frontend/src/TableSchema.zig),
 [`Batch`](../../packages/zig/transit-fuze/src/Batch.zig),
 [`TSeg`](../../packages/zig/transit-fuze/src/TSeg.zig),
 [`TSegReader`](../../packages/zig/transit-fuze/src/TSegReader.zig),
-[`DecimalArithmetic`](../../packages/zig/transit-fuze/src/DecimalArithmetic.zig)
+[`DecimalArithmetic`](../../packages/zig/transit-sql-frontend/src/DecimalArithmetic.zig)
 and [`FuzeDelta`](../../packages/zig/transit-fuze/src/FuzeDelta.zig).
 Comments naming a future codec or durable arrangement are not evidence that its
 storage and caller path exists.

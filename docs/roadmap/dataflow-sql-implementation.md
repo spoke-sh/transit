@@ -93,7 +93,7 @@ journey has additional ingress/publication gates owned by the downstream plan.
 
 | Delivered foundation or source finding | Reuse and remaining integration gate |
 | --- | --- |
-| [M12](12-application-modules-compilation-and-testing.md), #437/#438/#441: recursive Table builds, isolated Table tests and independent source grammar checks | Generated SQL executes through ordinary owners. Current `transit build` rejects Queue/effect programs; do not claim it already emits the broader DATAFLOW profile. M14 can qualify handwritten canonical SQL first, then M12 adds emission and emitter/runtime correspondence for that same profile. |
+| [M12](12-application-modules-compilation-and-testing.md), #437/#438/#441: recursive Table builds, isolated Table tests and independent source grammar checks | Generated SQL executes through ordinary owners. Current `transitc build` rejects Queue/effect programs; do not claim it already emits the broader DATAFLOW profile. M14 can qualify handwritten canonical SQL first, then M12 adds emission and emitter/runtime correspondence for that same profile. |
 | [Application foundation](downstream-application-language.md), #435 | `ApplicationProgram` parses, binds and encodes ordered instructions; `ManagedApplication`, `ApplicationInvocation`, `ApplicationExecution` and `ApplicationRecovery` retain and execute original work. `DatabaseRuntime.applicationStep` already discovers it. Extend service composition; do not implement another invocation scheduler or instruction interpreter. |
 | [`ManagedSql`](../../packages/zig/transit-sql/src/ManagedSql.zig) and [`ManagedOperations`](../../packages/zig/transit-sql-service/src/ManagedOperations.zig) | SQL CREATE currently requires `INTO ... AS SELECT`; controls have no executor-role operand. Saved `DFS1` requests contain `ManagedTable.Declaration`. Add ordered-program variants and role binding before admitting Queue SQL. |
 | [`MigrationRunner`](../../packages/zig/transit-sql-service/src/MigrationRunner.zig) and [`MigrationDataflow`](../../packages/zig/transit-sql-service/src/MigrationDataflow.zig), #404/#435 | Finite DATAFLOW migrations and compound framing exist. A Queue body is framed as one step but is not installed by that fact. Extend exact dependency evidence beyond source/output Tables; preserve original step receipts and reviewed-plan drift checks. |
@@ -316,7 +316,7 @@ ordered instructions, guarded effects, refusal outcomes and native decisions.
 Run with the source repository/compiler absent, then repeat after restart.
 Source-only imports, build declarations and test directives must reject at runtime.
 
-M12 extends `transit test` with its own subject/clock/effect facilities; until those
+M12 extends `transitc test` with its own subject/clock/effect facilities; until those
 exist, use real service and fault fixtures. Do not add fake passing workflow tests
 to the delivered Table-only runner. Extend its independent source grammar and
 lowering correspondence with each admitted language construct, while M14 owns

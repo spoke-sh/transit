@@ -3,7 +3,7 @@
 [Milestone 12](12-application-modules-compilation-and-testing.md) · **Status: Completed** · Approved implementation slice
 
 Let an application author compose a reusable Table module, declare isolated tests
-beside it, and run `transit test` without a server, network access or containers.
+beside it, and run `transitc test` without a server, network access or containers.
 Compile setup and test statements through the production `.transit` graph and
 SQL emitter, then inspect actual typed rows, command outcomes and failures from
 the ordinary database owners. A test passes only after every selected assertion
@@ -22,7 +22,7 @@ The six implementation stages below are delivered: source/CLI contracts, typed
 compiler products, a reusable listener-free local host, the shared assertion
 runner, offline CLI integration and executable qualification. The supported
 profile and limits belong to the [application reference](../handbook/reference/applications.md#isolated-application-table-tests)
-and [source contract](../../contracts/APPLICATION_SOURCE_V1.md#isolated-table-tests).
+and [source contract](https://github.com/spoke-sh/transitc/blob/main/contracts/APPLICATION_SOURCE_V1.md#isolated-table-tests).
 The [qualification account](../history/qualification/interfaces.md#isolated-application-table-tests--2026-11-10)
 records commands, source revisions, failures, measured resource usage and limits.
 
@@ -57,12 +57,12 @@ validation is historical evidence, not a pass at this revision.
 
 | Existing owner | Reuse and remaining work |
 | --- | --- |
-| [Application source contract](../../contracts/APPLICATION_SOURCE_V1.md), [Syntax](../../packages/zig/transit-compiler/src/Syntax.zig), [Graph](../../packages/zig/transit-compiler/src/Graph.zig) | Modules, interfaces, targets, imports and typed constructor arguments exist. TEST declarations and test targets do not. Extend this grammar and graph rather than introducing a test manifest or script language. |
-| [Compiler](../../packages/zig/transit-compiler/src/Compiler.zig), [WorkingCatalog](../../packages/zig/transit-compiler/src/WorkingCatalog.zig) | Fresh public Tables, literal mutations and finite single-Table SELECT already lower through Fuze. Independent reparse/rebind compares ordered fingerprints. Reuse these passes for every executable test statement; keep test controls outside SQL. |
-| [BuildSources](../../apps/transit-cli/BuildSources.zig), [Build](../../apps/transit-cli/Build.zig) | Exact transitive locks, verified cached trees, explicit overrides, bounded source loading and provenance exist. Share their resolution and identity calculation between build and test; never call the build CLI recursively. |
+| [Application source contract](../../contracts/APPLICATION_SOURCE_V1.md), [Syntax](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-compiler/src/Syntax.zig), [Graph](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-compiler/src/Graph.zig) | Modules, interfaces, targets, imports and typed constructor arguments exist. TEST declarations and test targets do not. Extend this grammar and graph rather than introducing a test manifest or script language. |
+| [Compiler](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-compiler/src/Compiler.zig), [WorkingCatalog](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-compiler/src/WorkingCatalog.zig) | Fresh public Tables, literal mutations and finite single-Table SELECT already lower through Fuze. Independent reparse/rebind compares ordered fingerprints. Reuse these passes for every executable test statement; keep test controls outside SQL. |
+| [BuildSources](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-workspace/src/BuildSources.zig), [Build](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-workspace/src/Build.zig) | Exact transitive locks, verified cached trees, explicit overrides, bounded source loading and provenance exist. Share their resolution and identity calculation between build and test; never call the build CLI recursively. |
 | [DatabaseRuntime](../../packages/zig/transit-sql/src/DatabaseRuntime.zig), [SQL service](../../packages/zig/transit-sql-service/README.md) | `initEndpoint` accepts the existing typed local endpoint. Session preparation, admission, current disclosure checks, result completion and original-operation recovery already have owners. This is an integration seam, not an existing test harness. |
 | [LocalEndpoint](../../packages/zig/transit-client/src/LocalEndpoint.zig), [NativeServer](../../apps/transit-node/NativeServer.zig), [LocalTableService](../../apps/transit-node/LocalTableService.zig) | Typed local calls retain signed request validation, policy checks and owned responses. Host construction is currently coupled to node composition; expose the minimum reusable lifecycle without starting listeners or bypassing the real local dispatch path. |
-| [Application build proof](../../tests/interfaces/cli/application_build.py) | Contains independent hand-written SQL, network denial, source-free execution and failure/recovery controls. Its installed server fixture is a differential oracle, not the proposed container-free runner. |
+| [Application build proof](https://github.com/spoke-sh/transitc/blob/main/tests/integration/application_build.py) | Contains independent hand-written SQL, network denial, source-free execution and failure/recovery controls. Its installed server fixture is a differential oracle, not the proposed container-free runner. |
 
 Use the current [application model](../handbook/reference/applications.md#application-source-builds),
 [SQL result contract](../../contracts/SQL_SESSION_V1.md#logical-results-and-fetch-acknowledgement),
@@ -138,7 +138,7 @@ not new SQL statements or expressions interpreted by a second SQL engine.
 
 ### Selection and stage separation
 
-- Retain one source symbol namespace. `transit test` selects `tests` by default,
+- Retain one source symbol namespace. `transitc test` selects `tests` by default,
   so it can coexist with the ordinary build's `default` target in one entry file.
   Explicit target selection must match the command's target kind; wrong-kind
   selection and duplicate source names reject.
@@ -195,12 +195,12 @@ the service. Missing terminal evidence cannot produce a passing prefix.
 Propose this initial command surface:
 
 ```text
-transit test [-f build.transit] [--target tests]
+transitc test [-f build.transit] [--target tests]
              [--override NAME=DIRECTORY] [--format text|json]
 ```
 
 No implicit fetch, install, deployment connection or configuration discovery.
-Dependency preparation remains the explicit `transit build --fetch` operation;
+Dependency preparation remains the explicit `transitc build --fetch` operation;
 tests use its current lock and verified cache. Neither `.transitrc`, deployment
 credentials nor ambient server URLs affect a case. Unsupported flags, including
 `--verify-replay`, fail with a located CLI diagnostic instead of being ignored.
@@ -231,7 +231,7 @@ feature does not by itself require changing native persisted semantics.
 
 ## Runtime composition, authority and resource lifecycle
 
-Put reusable pure test compilation in `transit-compiler`. Put assertion execution
+Put reusable pure test compilation in `transitc-compiler`. Put assertion execution
 in a real Zig library, proposed `packages/zig/transit-test`, with its own manifest,
 public module, README and checks. It consumes SQL service/result APIs and a
 host-supplied local endpoint; it owns no provider or authorization evaluator.
@@ -295,14 +295,14 @@ must fail with bounded cleanup and cannot silently truncate coverage.
 | 2. Compile test compositions | Extend Syntax/Graph/Compiler with test targets, per-case catalogs and owned test products. Share resolver, provenance and production emission; preserve ordinary build behavior. | Root/child/remote compositions, interfaces, deterministic ordering, private symbols, stage errors, source spans, reparse equivalence, every limit and allocation cleanup. |
 | 3. Expose isolated local runtime composition | Factor listener-free initialization/dispatch/teardown from node ownership and compose real storage, authorization, DatabaseRuntime and sessions. | No socket creation or fallback; current grants and fencing; fresh state per case; joined cleanup and node regression checks. This is the main integration risk and must pass before the CLI reports any executable test support. |
 | 4. Execute typed assertions | Implement the runner over ordinary preparation, operation settlement and complete result consumption; add bounded safe reports. | Typed full-width values/NULL, zero and multi-batch results, exact command counts, real constraint refusals, denied/revoked disclosure, missing terminal evidence and owned batch lifetimes. |
-| 5. Wire `transit test` | Reuse source loading/locks/overrides, target selection and diagnostics; install the real command and documented exit behavior. | Offline root/child/repository tests work with Git/server binaries absent; no ambient configuration reads; missing/stale locks, unsupported flags, failing cases and unexecuted suffixes are visible. |
+| 5. Wire `transitc test` | Reuse source loading/locks/overrides, target selection and diagnostics; install the real command and documented exit behavior. | Offline root/child/repository tests work with Git/server binaries absent; no ambient configuration reads; missing/stale locks, unsupported flags, failing cases and unexecuted suffixes are visible. |
 | 6. Qualify and publish the supported profile | Differential installed-caller journey, failure schedules, resource measurements, task registration and public documentation. | Exact final-source required gates pass; evidence records scope and failures. Update M12 delivered/remaining scope without claiming full P5. |
 
 ## Acceptance evidence
 
 | Journey | Executable oracle and negative controls |
 | --- | --- |
-| Same source language and emitter | Root and child targets compose a typed module twice and a pinned transitive dependency/subdirectory. Explicit override provenance differs correctly. Locked network-denied repeats produce identical SQL and logical outcomes. Missing/foreign locks, corrupt cache, private references, cycles and expansion limits fail before startup. Existing `transit build` output stays equivalent. |
+| Same source language and emitter | Root and child targets compose a typed module twice and a pinned transitive dependency/subdirectory. Explicit override provenance differs correctly. Locked network-denied repeats produce identical SQL and logical outcomes. Missing/foreign locks, corrupt cache, private references, cycles and expansion limits fail before startup. Existing `transitc build` output stays equivalent. |
 | Ordinary SQL equivalence | Compare test SQL with independently hand-written SQL; run both through ordinary installed SQL clients with source packages absent. Compare schemas, complete typed rows and authoritative command counts. Normalization may map fresh runtime identities only; it cannot erase type, value, count or outcome differences. |
 | Isolated Table lifecycle | Multiple cases reuse the same bound Table names with different data and independent state. Exercise INSERT/UPDATE/DELETE, empty results, at least three fetch batches, NULL and full-width integer values. PK/constraint refusal leaves independently observed state unchanged. |
 | Truthful assertion outcomes | Deliberately wrong rows, schema, counts and refusal codes fail. A timeout cannot satisfy an expected rejection. Dropped/duplicated/reordered batches, absent terminal completion, exhausted row/byte budgets and scratch reset cannot manufacture a pass. Unsupported test/runtime forms fail with source locations. |

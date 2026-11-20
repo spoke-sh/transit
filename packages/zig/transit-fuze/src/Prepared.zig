@@ -1,7 +1,7 @@
 //! Owned finite SELECT templates. Bind values into the ordinary typed plan;
 //! source authorization, resource identity and admission belong to the caller.
 const std = @import("std");
-const sql = @import("Sql.zig");
+const sql = @import("transit_sql_frontend").Sql;
 const lowering = @import("SqlLowering.zig");
 const m = @import("Unified.zig");
 const Self = @This();

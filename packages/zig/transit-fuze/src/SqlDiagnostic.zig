@@ -1,9 +1,9 @@
 //! Bounded, local SQL failure presentation shared by query interfaces. No I/O,
 //! authorization or runtime capability negotiation. Never put source in logs.
 const std = @import("std");
-const sql = @import("Sql.zig");
+const sql = @import("transit_sql_frontend").Sql;
 const d = @import("transit_protocol").Diagnostic;
-const input = @import("SqlInput.zig");
+const input = @import("transit_sql_frontend").SqlInput;
 const Self = @This();
 
 pub const Kind = enum { syntax, unsupported, grammar_only, interface, binding, limit };
@@ -231,7 +231,7 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
         _ = sql.parseDeclarationLocated(text, &location) catch |err| return parseFailure(text, err, location, hint, .declaration);
         result = .{ .kind = .interface, .route = .declaration, .cause = cause, .summary = "State declaration syntax is supported, but query interfaces do not publish definitions", .hint = hint };
     } else if (word(text, first, "GRANT") or word(text, first, "REVOKE") or ((word(text, first, "CREATE") or word(text, first, "ALTER") or word(text, first, "DROP")) and (word(text, second, "ROLE") or word(text, second, "SCHEMA") or word(text, second, "DATABASE") or word(text, second, "DEFAULT"))) or ((word(text, first, "SET") or word(text, first, "RESET")) and word(text, second, "ROLE"))) {
-        var parsed = @import("AuthorizationSql.zig").compile(std.heap.page_allocator, text, &location) catch |err| return authorization(text, err, location);
+        var parsed = @import("transit_sql_frontend").AuthorizationSql.compile(std.heap.page_allocator, text, &location) catch |err| return authorization(text, err, location);
         parsed.deinit();
         result = .{ .kind = .interface, .route = .declaration, .cause = cause, .summary = "This query interface does not apply authorization changes", .hint = "Compile a reviewable plan through the Table bridge compile_authorization operation, then use the explicit native or schema administration lifecycle." };
     } else if (connector_explain or
@@ -543,13 +543,13 @@ fn word(text: []const u8, token: ?input.Token, expected: []const u8) bool {
 fn validateTableSyntax(text: []const u8, route: Route, location: *sql.Location) !void {
     var scratch: [256 * 1024]u8 = undefined;
     var fixed: std.heap.FixedBufferAllocator = .init(&scratch);
-    var parser = try @import("SqlTyped.zig").init(fixed.allocator(), text, location);
+    var parser = try @import("transit_sql_frontend").SqlTyped.init(fixed.allocator(), text, location);
     if (route == .query) {
-        _ = try @import("TableSelect.zig").syntax(&parser, null);
+        _ = try @import("transit_sql_frontend").TableSelect.syntax(&parser, null);
     } else if (route == .mutation) {
-        _ = try @import("TableDml.zig").syntax(&parser, null);
+        _ = try @import("transit_sql_frontend").TableDml.syntax(&parser, null);
     } else {
-        _ = try @import("TableDdl.zig").syntax(&parser, null);
+        _ = try @import("transit_sql_frontend").TableDdl.syntax(&parser, null);
     }
     try parser.finish();
 }
@@ -705,7 +705,7 @@ pub fn renderRemote(self: *const Self, out: *std.Io.Writer) !void {
 
 test "remote binding context remains printable bounded and explicitly truncated" {
     var binding: sql.Binding = .{};
-    sql.Binding.at(&binding, .{ .name = try @import("model.zig").Name.init("long_column_name"), .offset = 7 }, "configured_source");
+    sql.Binding.at(&binding, .{ .name = try @import("transit_sql_frontend").model.Name.init("long_column_name"), .offset = 7 }, "configured_source");
     binding.expected = "int64";
     binding.actual = "utf8";
     sql.Binding.supplied(&binding, @import("Unified.zig").Scalar{ .utf8 = "%\x1b[31m\n\"\\aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" });
@@ -849,7 +849,7 @@ test "SQL categories and scalar truncation are machine facts" {
 
 test "general Table literal failures keep typed causes and original locations" {
     const t = std.testing;
-    const Ddl = @import("TableDdl.zig");
+    const Ddl = @import("transit_sql_frontend").TableDdl;
     const cases = .{
         .{ "DATE", "DATE '2025-02-29'", error.InvalidDate, "sql.invalid_date" },
         .{ "TIME", "TIME '24:00:00'", error.InvalidTime, "sql.invalid_time" },

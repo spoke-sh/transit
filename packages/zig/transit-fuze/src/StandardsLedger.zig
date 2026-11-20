@@ -2,7 +2,7 @@
 //! Separates `parse`, `lower`, `execute`, `recover`, and `transport` states so
 //! parser grammar or offline compilation is never conflated with runtime support.
 const std = @import("std");
-const Collation = @import("Collation.zig").Collation;
+const Collation = @import("transit_sql_frontend").Collation.Collation;
 const PhysicalCodecs = @import("PhysicalCodecs.zig");
 
 pub const definition = "transit.sql.standards-ledger.v1.2026-11-01";

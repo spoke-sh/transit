@@ -66,6 +66,7 @@ class FeedbackCost(unittest.TestCase):
                                 'commit', '-qm', 'test(ci): fixture'], cwd=source, check=True)
                 fake = root / 'nix'
                 fake.write_text(f'#!{sys.executable}\nimport sys\nfrom pathlib import Path\n'
+                    'assert "ZIG_LOCAL_PKG_DIR=zig-pkg" in sys.argv\n'
                     'if "ci::dependencies" in sys.argv: sys.exit(0)\n'
                     'marker=Path(".cache/count"); marker.parent.mkdir(exist_ok=True)\n'
                     'count=int(marker.read_text())+1 if marker.exists() else 1\n'

@@ -15,7 +15,7 @@ FIXTURE_PATH = ROOT / "contracts/sql/vectorized-strings-and-search-fixtures.json
 ALLOCATIONS_PATH = ROOT / "tests/performance/allocations.json"
 
 ZIG_FILES = {
-    "PerfectHash": ROOT / "packages/zig/transit-fuze/src/PerfectHash.zig",
+    "PerfectHash": ROOT / "packages/zig/transit-sql-frontend/src/PerfectHash.zig",
     "SearchOracle": ROOT / "packages/zig/transit-fuze/src/SearchOracle.zig",
     "GermanString": ROOT / "packages/zig/transit-fuze/src/GermanString.zig",
     "PhysicalCodecs": ROOT / "packages/zig/transit-fuze/src/PhysicalCodecs.zig",

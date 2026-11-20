@@ -47,7 +47,7 @@ projection commutation, and collation sort-key preorders with Umbra 4-byte prefi
 reflection and zone-map pruning under explicit correspondence assumptions; no
 optimizer rewrite is enabled by those proofs.
 
-The [typed-target source specification](../../../contracts/application-source/TypedTarget.lean)
+The [typed-target source specification](https://github.com/spoke-sh/transitc/blob/main/contracts/application-source/TypedTarget.lean)
 proves nominal substitution, selection from a checked total arm table and ordered
 Table-action preservation for one scalar payload per constructor and insert
 bodies. Three additional laws cover exact-domain record projection under

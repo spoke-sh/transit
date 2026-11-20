@@ -13,8 +13,6 @@ transit --version
 transit server [--config FILE] [--no-ui]
 transit console [--config FILE] [--format table|json] [-c SQL | -f FILE] [--init FILE | --no-rc]
 transit migrate <plan|inspect|apply|status|resume|verify> [OPTIONS]
-transit build [-f FILE] [--target NAME] [OPTIONS]
-transit test [-f FILE] [--target NAME] [OPTIONS]
 ```
 
 | Command | Input and outcome |
@@ -22,8 +20,10 @@ transit test [-f FILE] [--target NAME] [OPTIONS]
 | `server` | Run the local supervisor in the foreground. Missing installation paths are initialized automatically; existing empty directories are refused. The local profile starts Board by default; `--no-ui` runs headlessly |
 | `console` | Independent local/remote SQL sessions, interactive and batch results, terminal assistance and service-owned operation recovery |
 | `migrate` | Reviewable, resumable application schema and data migration lifecycle (`plan`, `inspect`, `apply`, `status`, `resume`, `verify`) over ordered `.sql` sources or saved plans (`transit_migration_plan_v1`) |
-| `build` | Compile typed modules to SQL for public Tables, Streams, Queues and Queue programs, with provenance and frozen dependencies |
-| `test` | Compile and run explicit Table and Queue program cases in isolated local databases |
+
+Source tooling is distributed separately as [transitc](https://github.com/spoke-sh/transitc).
+Use `transitc build` and `transitc test`; Transit is its upstream runtime and SQL
+dependency. The runtime CLI exposes only the three commands above.
 
 The installed server starts from defaults and overlays the first existing
 `./transit.yaml`, `$XDG_CONFIG_HOME/transit.yaml` (default `~/.config/transit.yaml`) or `/etc/transit/transit.yaml`; `--config`
@@ -49,7 +49,7 @@ are never merged between them. The rc files remain DuckDB-style dot-command scri
 
 ## Application source builds
 
-`transit build [-f FILE] [--target NAME]` reads `build.transit` by default and,
+`transitc build [-f FILE] [--target NAME]` reads `build.transit` by default and,
 when `--target` is omitted, selects the entry file's `EXPORT DEFAULT TARGET` (or
 `default` when none is declared). It compiles new Table, Stream and Queue definitions,
 bounded literal mutations and log appends, finite single-Table reads, and public
@@ -81,7 +81,7 @@ Normal builds verify locked source content. Supported repository transports are
 HTTPS and explicitly selected local Git repositories; hooks, package scripts and
 submodules are not executed. Repository URLs must contain no credentials.
 Caches made with earlier source-selection rules fail frozen verification. Review
-the dependency and run an explicit `transit build --fetch` to prepare its current
+the dependency and run an explicit `transitc build --fetch` to prepare its current
 selected tree; an ordinary build does not rewrite the lock.
 
 Successful output contains `application.sql` and `provenance.json` (recording any
@@ -106,7 +106,7 @@ Review the generated SQL, then use `transit migrate plan --dir OUTPUT/migrations
 --database DATABASE --schema SCHEMA --out plan.json` and apply that saved plan.
 Database/schema bindings in source describe the comparison; the explicit migrate
 assertions check the live destination. Source and sidecars are not needed for
-apply or recovery. See [Table migration targets](../../../contracts/APPLICATION_SOURCE_V1.md#table-migration-targets)
+apply or recovery. See [Table migration targets](https://github.com/spoke-sh/transitc/blob/main/contracts/APPLICATION_SOURCE_V1.md#table-migration-targets)
 for syntax, exact bounds and unsupported transforms.
 
 Failures render the failing build or test step, workspace/cache-resolved source
@@ -131,11 +131,11 @@ remains planned.
 
 ## Application Table tests
 
-`transit test [-f FILE] [--target NAME]` defaults to `build.transit` and, when
+`transitc test [-f FILE] [--target NAME]` defaults to `build.transit` and, when
 `--target` is omitted, selects the entry file's unique test target or delegated
 test-target alias (falling back to `tests` when none is exported and refusing
 ambiguous multi-test entries). It uses the installed Transit binary without a running server or
-containers. Prepare repository dependencies explicitly with `transit build
+containers. Prepare repository dependencies explicitly with `transitc build
 --fetch`; tests verify the frozen lock and cache without network access. Explicit
 `--override NAME=DIRECTORY` changes source provenance, as for builds. Tests never
 read server configuration, connection credentials or `.transitrc`.

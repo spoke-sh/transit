@@ -3,12 +3,12 @@
 //! compaction-invariant multiset equivalence, 2D/3D topological and volumetric
 //! conflict promotion, and five-state `IS CONFLICT` (`v.Cell.conflict`) cell projection.
 const std = @import("std");
-const s = @import("TableSchema.zig");
-const t = @import("Types.zig");
+const s = @import("transit_sql_frontend").TableSchema;
+const t = @import("transit_sql_frontend").Types;
 const v = t.Values;
-const Collation = @import("Collation.zig");
-const TableConstraints = @import("TableConstraints.zig");
-const TableSchemaProjection = @import("TableSchemaProjection.zig");
+const Collation = @import("transit_sql_frontend").Collation;
+const TableConstraints = @import("transit_sql_frontend").TableConstraints;
+const TableSchemaProjection = @import("transit_sql_frontend").TableSchemaProjection;
 
 pub const DiffOp = enum(u8) {
     added = 1,

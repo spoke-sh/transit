@@ -2,9 +2,9 @@ const std = @import("std");
 const t = std.testing;
 const TSeg = @import("TSeg.zig");
 const Reader = @import("TSegReader.zig");
-const Schema = @import("TableSchema.zig");
-const Row = @import("TableRow.zig");
-const Values = @import("Values.zig");
+const Schema = @import("transit_sql_frontend").TableSchema;
+const Row = @import("transit_sql_frontend").TableRow;
+const Values = @import("transit_sql_frontend").Values;
 const Codecs = @import("PhysicalCodecs.zig");
 const ColumnPredicate = @import("ColumnPredicate.zig");
 

@@ -21,7 +21,7 @@ SOURCES = (
     "tests/runner/capture.py",
     "build/checks.zig",
     "packages/zig/transit-fuze/src/ColumnPredicate.zig",
-    "packages/zig/transit-fuze/src/Collation.zig",
+    "packages/zig/transit-sql-frontend/src/Collation.zig",
     "packages/zig/transit-fuze/src/PhysicalCodecs.zig",
     "packages/zig/transit-memory/src/AllocationProbe.zig",
 )

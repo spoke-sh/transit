@@ -2,13 +2,13 @@
 //! Groups owns external keyed state. Neither interface grants disclosure rights.
 //! The owner validates every source on every step and publishes only completion.
 const std = @import("std");
-const r = @import("Relational.zig");
+const r = @import("transit_sql_frontend").Relational;
 const Checkpoint = @import("RelationalCheckpoint.zig");
-const table = @import("TableSchema.zig");
+const table = @import("transit_sql_frontend").TableSchema;
 const Kernel = @import("RelationalKernel.zig");
-const Truth = @import("PredicateTruth.zig").Truth;
-const v = @import("RelationalValues.zig");
-pub const Cell = @import("Types.zig").Values.Cell;
+const Truth = @import("transit_sql_frontend").PredicateTruth.Truth;
+const v = @import("transit_sql_frontend").RelationalValues;
+pub const Cell = @import("transit_sql_frontend").Types.Values.Cell;
 
 /// Positions are schema ordinals. Text views borrow buffer unless constructed
 /// over immutable caller data. Move an owned row or clone it; never release two
@@ -51,7 +51,7 @@ pub const Projection = struct {
     pub fn init(plan: r.Plan) !Projection {
         var result: Projection = .{ .plan = plan };
         if (plan.scalars.instructions.len != 0) {
-            var fields: [table.max_columns]@import("Types.zig").Field = undefined;
+            var fields: [table.max_columns]@import("transit_sql_frontend").Types.Field = undefined;
             try plan.scalars.prepare((try plan.sources[0].schema.rowType(&fields)).structure, &result.workspace);
         }
         return result;
@@ -172,8 +172,8 @@ pub fn Execution(comptime Sources: type, comptime Groups: type) type {
             for (bound.plan.outputs) |field| if (field.expression != .column) {
                 grouped = true;
             };
-            var fields: [r.max_outputs]@import("Types.zig").Field = undefined;
-            var bytes: [@import("Types.zig").max_encoding_bytes]u8 = undefined;
+            var fields: [r.max_outputs]@import("transit_sql_frontend").Types.Field = undefined;
+            var bytes: [@import("transit_sql_frontend").Types.max_encoding_bytes]u8 = undefined;
             const encoded = try (try bound.plan.outputSchema(&fields)).encode(&bytes);
             if (encoded.len > bound.plan.budgets.result_bytes) return error.RelationalResultBudget;
             try sources.validate(bound);
@@ -580,7 +580,7 @@ test {
     _ = @import("relational_text_test.zig");
 }
 
-fn sumCell(value: ?i128, kind: @import("Types.zig").Type) Cell {
+fn sumCell(value: ?i128, kind: @import("transit_sql_frontend").Types.Type) Cell {
     const number = value orelse return .null;
     return .{ .value = .{ .atom = if (kind == .decimal) .{ .decimal = number } else .{ .signed = number } } };
 }

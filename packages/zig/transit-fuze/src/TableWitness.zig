@@ -1,10 +1,10 @@
 //! Bounded evidence captured at the rejecting execution, never reconstructed
 //! from a later Table. The enclosing durable record supplies format/definition.
 const std = @import("std");
-const Schema = @import("TableSchema.zig");
-const Row = @import("TableRow.zig");
-const t = @import("Types.zig");
-const display = @import("LogicalDisplay.zig");
+const Schema = @import("transit_sql_frontend").TableSchema;
+const Row = @import("transit_sql_frontend").TableRow;
+const t = @import("transit_sql_frontend").Types;
+const display = @import("transit_sql_frontend").LogicalDisplay;
 const Self = @This();
 pub const encoded_bytes = 95;
 pub const preview_bytes = 64;

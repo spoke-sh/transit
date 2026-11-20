@@ -1,7 +1,7 @@
 //! Incremental CSV/JSONL framing over caller-supplied chunks. One record borrows
 //! a caller-owned buffer. Release it before feeding again; no I/O is performed.
 const std = @import("std");
-const BudgetDiagnostic = @import("BudgetDiagnostic.zig");
+const BudgetDiagnostic = @import("transit_sql_frontend").BudgetDiagnostic;
 pub const Format = enum { csv, jsonl };
 pub const Dialect = struct {
     delimiter: u8 = ',',
@@ -112,7 +112,7 @@ pub const Framer = struct {
     pub fn record(self: *Framer) ![]u8 {
         if (!self.ready or self.failed) return error.InvalidFramerState;
         if (self.format == .jsonl and self.length == 0) return error.EmptyJsonRecord;
-        self.encoding_offset = @import("JsonDiagnostic.zig").invalidUtf8Offset(self.buffer[0..self.length]);
+        self.encoding_offset = @import("transit_sql_frontend").JsonDiagnostic.invalidUtf8Offset(self.buffer[0..self.length]);
         if (self.encoding_offset != null) return error.InvalidUtf8;
         return self.buffer[0..self.length];
     }

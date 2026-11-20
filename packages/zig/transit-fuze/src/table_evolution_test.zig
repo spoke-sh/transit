@@ -1,8 +1,8 @@
 const std = @import("std");
 const e = std.testing;
-const s = @import("TableSchema.zig");
-const evolution = @import("TableEvolution.zig");
-const Cell = @import("Types.zig").Values.Cell;
+const s = @import("transit_sql_frontend").TableSchema;
+const evolution = @import("transit_sql_frontend").TableEvolution;
+const Cell = @import("transit_sql_frontend").Types.Values.Cell;
 const before: s.Schema = .{ .object = 1, .revision = 1, .next_column = 3, .columns = &.{
     .{ .id = 1, .name = "id", .type = .int64, .nullable = false },
     .{ .id = 2, .name = "amount", .type = .int64, .default = number(7) },

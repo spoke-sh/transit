@@ -762,7 +762,7 @@
       "claim": "Complete single-Table SQL lowers to the existing typed plan without silently dropping clauses or truncating unbounded selection",
       "owner": "contracts/sql/README.md",
       "implementation": [
-        "packages/zig/transit-fuze/src/Sql.zig",
+        "packages/zig/transit-sql-frontend/src/Sql.zig",
         "packages/zig/transit-fuze/src/UnifiedSql.zig",
         "tests/query/sql/sql_driver.zig",
         "tests/query/sql/reference.py",
@@ -1510,11 +1510,11 @@
       "claim": "Offline KV/Document definitions preserve typed intent without publication; Table declarations use the shared general DDL and schema owner",
       "owner": "contracts/STATE_DECLARATION_V1.md",
       "implementation": [
-        "packages/zig/transit-fuze/src/Declaration.zig",
-        "packages/zig/transit-fuze/src/Sql.zig",
+        "packages/zig/transit-sql-frontend/src/Declaration.zig",
+        "packages/zig/transit-sql-frontend/src/Sql.zig",
         "tests/interfaces/sql/sql_declaration.zig",
         "tests/query/sql/declarations.py",
-        "packages/zig/transit-fuze/src/TableDdl.zig",
+        "packages/zig/transit-sql-frontend/src/TableDdl.zig",
         "packages/zig/transit-fuze/src/declaration_test.zig"
       ],
       "profile": "state-declaration-v1/offline",
@@ -2537,9 +2537,9 @@
       "claim": "Fuze 5-state Cell lattice and 3-valued Kleene/SQL predicates preserve error dominance, IS NOT DISTINCT FROM reflexivity and WHERE filter equivalence",
       "owner": "docs/handbook/reference/queries.md",
       "implementation": [
-        "packages/zig/transit-fuze/src/Types.zig",
-        "packages/zig/transit-fuze/src/PredicateTruth.zig",
-        "packages/zig/transit-fuze/src/LogicalPredicate.zig",
+        "packages/zig/transit-sql-frontend/src/Types.zig",
+        "packages/zig/transit-sql-frontend/src/PredicateTruth.zig",
+        "packages/zig/transit-sql-frontend/src/LogicalPredicate.zig",
         "contracts/sql/FuzeCell.lean",
         "tests/query/sql/rewrites.py"
       ],
@@ -2562,7 +2562,7 @@
       "claim": "Multi-version Table schema evolution and physical-to-logical projection preserve historical values across ADD COLUMN, DROP COLUMN and compaction segment rewrite",
       "owner": "docs/handbook/reference/tables.md",
       "implementation": [
-        "packages/zig/transit-fuze/src/TableSchemaProjection.zig",
+        "packages/zig/transit-sql-frontend/src/TableSchemaProjection.zig",
         "contracts/sql/SchemaProjection.lean",
         "tests/query/sql/rewrites.py"
       ],
@@ -2584,7 +2584,7 @@
       "claim": "Collation sort keys form a total preorder, 4-byte Umbra prefixes reflect strict inequality and segment zone-map min/max pruning is sound",
       "owner": "docs/handbook/reference/queries.md",
       "implementation": [
-        "packages/zig/transit-fuze/src/Collation.zig",
+        "packages/zig/transit-sql-frontend/src/Collation.zig",
         "packages/zig/transit-storage/src/OrderedKeyIndex.zig",
         "contracts/sql/CollationOrder.lean",
         "tests/query/sql/rewrites.py"
@@ -2684,7 +2684,7 @@
       "claim": "Admitted EBCDIC comparison, equality hashing, sort keys, prefixes and encoded filtering preserve the declared PAD or NO PAD semantics",
       "owner": "contracts/FUZE_TYPES_V1.md",
       "implementation": [
-        "packages/zig/transit-fuze/src/Collation.zig",
+        "packages/zig/transit-sql-frontend/src/Collation.zig",
         "packages/zig/transit-fuze/src/query_collation_test.zig",
         "packages/zig/transit-fuze/src/perfect_hash_and_oracle_test.zig",
         "tests/storage/tables/direct_table_service.py"
@@ -2916,62 +2916,6 @@
       "limits": "Component admission authenticates the configured original; it is not a public upload route. No scheduler, live HTTP attempt, activation, JSON interpretation, current-Table replacement or power-loss claim. Common transaction decisions reuse their existing owner; this entry claims no formal refinement of the composed handoff.",
       "model": null,
       "qualification": "Commands and source-specific completed evidence belong in docs/history/qualification/catalog.md; registration alone establishes no pass.",
-      "required_tier": "ordinary"
-    },
-    {
-      "id": "SOURCE-01",
-      "claim": "Independent source syntax, production ASTs and bounded formatting preserve ordered Table SQL and logical test products",
-      "owner": "contracts/APPLICATION_SOURCE_V1.md",
-      "implementation": [
-        "packages/zig/transit-compiler/src/Syntax.zig",
-        "packages/zig/transit-compiler/src/Template.zig",
-        "packages/zig/transit-compiler/src/Format.zig",
-        "packages/zig/transit-compiler/src/Compiler.zig"
-      ],
-      "profile": "transit_source_v1/Table",
-      "tasks": [
-        "test::application-source-grammar",
-        "test::application-compiler",
-        "test::application-build",
-        "test::application-test"
-      ],
-      "scenarios": [
-        "Complete source/template syntax and typed-hole sites",
-        "Malformed unused bodies and stage refusals",
-        "UTF-8 byte coordinates and source formatting",
-        "Independent AST, precedence and coverage negative controls"
-      ],
-      "limits": "Finite corpus and deterministic variants; syntax/lowering correspondence is not a runtime, temporal-model or theorem proof.",
-      "model": null,
-      "qualification": "Required correspondence and consumer checks; executed scope belongs in docs/history/qualification/query.md. Registration alone establishes no pass.",
-      "required_tier": "ordinary"
-    },
-    {
-      "id": "SOURCE-02",
-      "claim": "Nominal source operands and exhaustive compile-time selection preserve the selected ordered typed Table actions before scalar SQL erasure",
-      "owner": "contracts/APPLICATION_SOURCE_V1.md",
-      "implementation": [
-        "packages/zig/transit-compiler/src/SourceTypes.zig",
-        "packages/zig/transit-compiler/src/TypedOperands.zig",
-        "packages/zig/transit-compiler/src/Compiler.zig"
-      ],
-      "profile": "transit_source_v1/nominal-public-Table-specialization",
-      "tasks": [
-        "test::application-source-types",
-        "test::application-source-grammar",
-        "test::application-compiler",
-        "test::application-build",
-        "test::application-test"
-      ],
-      "scenarios": [
-        "Distinct Machine/Site nominal identities with equal raw ID 7",
-        "All reached MATCH arms checked with symbolic payload types; wrong domains and Table signatures refuse",
-        "Exact typed operands, independent emitted SQL, real counts and complete rows",
-        "Three audited Lean laws and sixteen finite source/action comparisons; swapped domain/value/binding and incomplete-proof controls"
-      ],
-      "limits": "Lean models exact source types, de Bruijn binding, one scalar payload per constructor, total checked arm tables and ordered inserts. It assumes well-typed environments and Table bindings; it does not prove the parser, source checker, complete Zig evaluator, SQL/runtime, authority, progress or effects. Finite implementation comparisons are separate from the laws.",
-      "model": "contracts/application-source/TypedTarget.lean",
-      "qualification": "Required checks; executed scope belongs in docs/history/qualification/query.md. Registration or an incomplete run establishes no pass.",
       "required_tier": "ordinary"
     }
   ]

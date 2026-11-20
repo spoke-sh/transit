@@ -4,9 +4,9 @@ test {
     _ = @import("batch_program_test.zig");
 }
 const std = @import("std");
-const types = @import("Types.zig");
+const types = @import("transit_sql_frontend").Types;
 const logical = @import("LogicalQuery.zig");
-const finite = @import("Finite.zig");
+const finite = @import("transit_sql_frontend").Finite;
 const Cell = types.Values.Cell;
 const Alternative = types.Values.Alternative;
 const Self = @This();

@@ -556,18 +556,13 @@ workflow runs it after the installed public-release proof on a fresh runner.
 
 ## Application source checks
 
-`just test application-compiler` checks pure module/test compilation and emission.
-`just test application-runner` checks the typed assertion package.
-`just test application-build` qualifies frozen builds and independent installed
-SQL execution. `just test application-test` exercises the real offline Table/Queue test
-command, its installed SQL oracle, budgets and process failure schedules.
-`just test application-test-host` exercises the same listener-free host with real
-policy revocation, lost commit replies, corrupted/incomplete reads, allocation,
-quota, deadline and cleanup failures. The latter hooks are qualification code,
-not application source features or workflow replay support.
+Source compiler, workspace, grammar, model, build and test-command schedules are
+owned by [transitc](https://github.com/spoke-sh/transitc/blob/main/tests/integration/README.md).
+Run its `just test`, `just test-grammar`, `just test-types`, `just test-build-command`
+and `just test-command` in that repository against its exactly pinned Transit.
 
-The public Queue fixture checks ordered emission against hand-written SQL,
-removes source before installed execution, and verifies state/output rows,
-recorded completion/refusal counts, atomic rollback and restart. WORKFLOW test
-controls enforce bounded observation and current rights; they use the real local
-clock. Changed rows/counts and insufficient observation budgets must fail.
+Here, `just test application-runner` checks the typed assertion package.
+`just test application-test-host` exercises the listener-free native host with real
+policy revocation, lost commit replies, corrupted/incomplete reads, allocation,
+quota, deadline and cleanup failures. These hooks qualify native execution;
+they neither evaluate source nor orchestrate compiler suites.

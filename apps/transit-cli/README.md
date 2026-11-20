@@ -12,14 +12,14 @@ direct catalog without reading `.transitrc` startup files. Table and finite
 dataflow declarations share SQL operation owners and retain original identities
 for recovery. See the [migration workflow](../../docs/handbook/reference/cli.md#application-sql-migrations).
 
-`transit build` compiles typed application modules offline into executable SQL
+`transitc build` compiles typed application modules offline into executable SQL
 and provenance, with Zig-style source diagnostics and `--color auto|off|on` on
 stderr. Explicit-basis migration targets publish reviewed Table CREATE/ADD
 SQL, immutable history and a successor basis; they never apply it. Explicit `--fetch` prepares pinned dependencies; normal builds
 verify frozen content without network access. See the
 [application source build reference](../../docs/handbook/reference/cli.md#application-source-builds).
 
-`transit test` compiles the same source graph and runs explicit Table and public
+`transitc test` compiles the same source graph and runs explicit Table and public
 Queue-program cases in
 private local databases, reporting compile and assertion failures with source
 spans, notes and `--color auto|off|on` on stderr. It uses real SQL session and authorization owners without
@@ -99,3 +99,14 @@ each count once, while blank lines/comments do not. Earlier effects remain
 committed. SQL embedded in `.execute` input retains its own local coordinates;
 the enclosing script command is reported separately. Paths are bounded and
 escaped before terminal rendering. These diagnostics go to stderr.
+
+## Compiler ownership
+
+Source build and test commands live in [transitc](https://github.com/spoke-sh/transitc):
+use `transitc build` and `transitc test`. Transit is its upstream dependency and
+contains no compiler snapshot, source resolver or suite orchestrator.
+
+This CLI owns runtime server, console and migration operations. Its private
+[compiled-case host](../../contracts/TEST_HOST_V1.md) accepts bounded SQL and typed
+expectations from transitc, then executes them through ordinary native owners in
+fresh disposable databases. It accepts no source or existing installation settings.

@@ -1,0 +1,11 @@
+.{
+    .name = .transit_test_protocol,
+    .version = "0.0.1",
+    .fingerprint = 0x40c8716e30499b11,
+    .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
+    .dependencies = .{
+        .transit_sql_frontend = .{ .path = "../transit-sql-frontend" },
+        .transit_protocol = .{ .path = "../transit-protocol" },
+    },
+    .paths = .{ "build.zig", "build.zig.zon", "src", "README.md" },
+}

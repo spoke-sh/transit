@@ -1,7 +1,7 @@
 const std = @import("std");
 const expect = std.testing;
-const s = @import("TableSchema.zig");
-const t = @import("Types.zig");
+const s = @import("transit_sql_frontend").TableSchema;
+const t = @import("transit_sql_frontend").Types;
 const Cell = t.Values.Cell;
 fn integer(value: i128) Cell {
     return .{ .value = .{ .atom = .{ .signed = value } } };

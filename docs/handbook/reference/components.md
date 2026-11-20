@@ -41,8 +41,8 @@ the implementations listed below remain shared runtime libraries.
 | [transit-source-import](../../../packages/zig/transit-source-import/README.md) / `transit_source_import` | Retained sealed HTTP handoff into owned SOURCE captures | transit-station-http, transit-data-client |
 | [transit-tls](../../../packages/zig/transit-tls/README.md) / `transit_tls` | Compiler-pinned TLS client with bounded certificate-path verification | Pinned zig-libs certificate-validation snapshot |
 | [transit-tls-server](../../../packages/zig/transit-tls-server/README.md) / `transit_tls_server` | TLS 1.2/1.3 server sessions over bounded, deadline-controlled Zig I/O | Pinned OpenSSL 3.6.4 server API |
-| [transit-compiler](../../../packages/zig/transit-compiler/README.md) / `transit_compiler` | Offline typed module graphs, bounded evaluation and verified SQL emission for public Tables, Streams, Queues and Queue programs | transit-fuze, transit-memory, transit-protocol |
-| [transit-test](../../../packages/zig/transit-test/README.md) / `transit_test` | Bounded typed application assertions and signed disposable realm provisioning | transit-compiler, transit-sql-service, transit-memory |
+| [transit-test-protocol](../../../packages/zig/transit-test-protocol/README.md) / `transit_test_protocol` | Pure compiled SQL case, expectation and host-result contract | transit-sql-frontend, transit-protocol |
+| [transit-test](../../../packages/zig/transit-test/README.md) / `transit_test` | Bounded typed application assertions and signed disposable realm provisioning | transit-test-protocol, transit-sql-service, transit-memory |
 | [transit-sql-results](../../../packages/zig/transit-sql-results/README.md) / `transit_sql_results` | Logical statement outcomes, result progress and observation evidence | transit-fuze, transit-protocol |
 | [transit-sql-protocol](../../../packages/zig/transit-sql-protocol/README.md) / `transit_sql_protocol` | SQL session messages, canonical logical carriage and SCRAM | transit-fuze, transit-protocol |
 | [transit-sql-client](../../../packages/zig/transit-sql-client/README.md) / `transit_sql_client` | Native HTTP/TLS and Unix session transport, authentication, local discovery and owned responses | transit-sql-protocol |
@@ -72,7 +72,8 @@ the implementations listed below remain shared runtime libraries.
 | [transit-query-direct](../../../packages/zig/transit-query-direct/README.md) / `transit_query_direct` | Finite direct Table SQL compilation/execution, bounded compute and relational spill | transit-catalog, transit-fuze, transit-protocol |
 | [transit-query](../../../packages/zig/transit-query/README.md) / `transit_query` | Signed query admission, verified typed pages and KV/Table/Document adapters | transit-query-direct, transit-station, transit-station-document |
 | [transit-catalog](../../../packages/zig/transit-catalog/README.md) / `transit_catalog` | Named Table creation, immutable definitions, bounded metadata, signed caller, neutral values and explicit catalog behavior | transit-client, transit-protocol, transit-fuze, transit-storage |
-| [transit-fuze](../../../packages/zig/transit-fuze/README.md) / `transit_fuze` | Source/plan contracts, Table SQL compilation and bounded Zig-native Arrow execution | pinned zarrow, zarrow-compute |
+| [transit-sql-frontend](../../../packages/zig/transit-sql-frontend/README.md) / `transit_sql_frontend` | Pure SQL parsing, logical types, binding, program contracts and schema evolution shared by compilers and Fuze | transit-memory, transit-protocol, transit-spatial |
+| [transit-fuze](../../../packages/zig/transit-fuze/README.md) / `transit_fuze` | Shared frontend composition and bounded Zig-native Arrow execution | transit-sql-frontend, pinned zarrow, zarrow-compute |
 | [transit-spatial](../../../packages/zig/transit-spatial/README.md) / `transit_spatial` | Explicit coordinate references, exact determinant predicates and bounded planar ring/polygon kernels; local library APIs | transit-protocol |
 
 

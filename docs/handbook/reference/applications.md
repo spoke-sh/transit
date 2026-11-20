@@ -1,5 +1,12 @@
 # Application installation, definitions and migration
 
+Source compilation is owned by [transitc](https://github.com/spoke-sh/transitc).
+Use `transitc build` to compile source offline and `transitc test` to compile and
+run isolated suites. transitc depends on Transit's SQL frontend and protocol
+types; Transit does not depend on transitc. A compatible Transit host executes
+compiled cases in fresh private databases. Migration application stays with
+Transit. See the [transitc testing guide](https://github.com/spoke-sh/transitc/blob/main/docs/handbook/guides/testing.md).
+
 An installed application, a published interface and a data migration are separate
 objects. Installing new code does not authorize new operations, publish a UI or
 transform durable data. Use the [first application guide](../guides/applications.md)
@@ -8,7 +15,7 @@ for the complete example.
 
 ## Application source builds
 
-`transit build` compiles `.transit` modules to ordinary SQL for new Tables,
+`transitc build` compiles `.transit` modules to ordinary SQL for new Tables,
 Streams and Queues, literal mutations and log appends, finite single-Table SELECT,
 and public Queue programs. Typed constructors (`CREATE [PUBLIC] MODULE` or
 shorthand `EXPORT MODULE`) accept scalar/nominal values, `ROW(...)` records,
@@ -34,7 +41,7 @@ CREATE TARGET default AS BEGIN
 END;
 ```
 
-Run `transit build --check` to check the selected target, or `transit build` to
+Run `transitc build --check` to check the selected target, or `transitc build` to
 publish `application.sql` and its provenance under `.transit/build/`. Execute
 that SQL separately through an ordinary caller, for example
 `transit console --no-rc -f PATH/application.sql`. Source packages and build
@@ -43,13 +50,13 @@ metadata are unnecessary at execution; current authorization still applies.
 The compiler starts with an empty proposed catalog and does not consult a server.
 
 Repository dependencies name exact commits and package subdirectories in source.
-`transit build --fetch` explicitly populates the content-verified cache and lock;
+`transitc build --fetch` explicitly populates the content-verified cache and lock;
 subsequent builds run offline. Explicit local overrides enter provenance and
 build identity. The [build CLI](cli.md#application-source-builds) and
 [source contract](../../../contracts/APPLICATION_SOURCE_V1.md) define syntax,
 resolution, artifacts, diagnostics and resource limits.
 
-The [source grammar](../../../contracts/application-source/README.md) formalizes
+The [source grammar](https://github.com/spoke-sh/transitc/blob/main/contracts/application-source/README.md) formalizes
 these forms separately from runtime SQL and interface/UI declarations. Complete
 resource-template and expected-row syntax is checked in every body, including unused
 modules and unselected branches. Name resolution, types, target placement and
@@ -69,9 +76,9 @@ through `EXPORT TABLE $name AS rows;`. A parameter such as
 Assignments and equality predicates preserve the column's nominal type even
 when SQL uses a literal Table name. Final SQL contains ordinary scalar values;
 direct SQL retains its ordinary type and authorization rules. The
-[source specialization contract](../../../contracts/APPLICATION_SOURCE_V1.md#typed-source-specialization)
+[source specialization contract](https://github.com/spoke-sh/transitc/blob/main/contracts/APPLICATION_SOURCE_V1.md#typed-source-specialization)
 owns exact syntax, symbolic-checking limits and proof premises. The
-[synthetic example](../../../tests/fixtures/application-typed-targets/README.md)
+[synthetic example](https://github.com/spoke-sh/transitc/blob/main/tests/fixtures/application-typed-targets/README.md)
 shows both resource kinds with raw ID `7` and isolated Table tests.
 
 `STREAM(...)` and `QUEUE(...)` parameters and matching exports preserve distinct
@@ -96,7 +103,7 @@ hygienically renamed bindings and writes into the caller's single atomic
 transaction decision. A `RETURNS type` procedure ends with one top-level
 `RETURN expression;`; returned values retain their nominal types and remain
 scoped to the caller's atomic block. Arguments and returns evaluate once. Building emits SQL and never activates it. The
-[program source profile](../../../contracts/APPLICATION_SOURCE_V1.md#public-queue-programs)
+[program source profile](https://github.com/spoke-sh/transitc/blob/main/contracts/APPLICATION_SOURCE_V1.md#public-queue-programs)
 defines exact supported instructions, helper restrictions, schemas and limits.
 Nominal Queue, Stream and Table fields retain their source types through LET,
 pure function calls, record projections, nullable one-record lookups, ordered
@@ -118,14 +125,14 @@ additions (including `NOT ENFORCED` foreign keys) against an explicit offline ba
 `FOR DATABASE ... SCHEMA ... VERSION ... NAME ...` (or shorthand `VERSION '<ver>-<name>'`) bindings and optional
 `INTO '<path>'` metadata. Builds preserve immutable SQL history, refuse destructive or ambiguous changes,
 and publish a reviewable `migrations/` directory without applying it. The
-[source contract](../../../contracts/APPLICATION_SOURCE_V1.md#table-migration-targets)
+[source contract](https://github.com/spoke-sh/transitc/blob/main/contracts/APPLICATION_SOURCE_V1.md#table-migration-targets)
 defines the syntax and limits. Broader migration kinds and view/serving
 extensions remain planned. The existing
 interface-definition compiler and installation APIs below retain their scope.
 
 ## Isolated application Table tests
 
-`transit test` selects the entry file's unique test target (or `--target NAME`,
+`transitc test` selects the entry file's unique test target (or `--target NAME`,
 defaulting to `CREATE TEST TARGET tests` when no test target is exported) from
 the same source graph and frozen dependencies as a build. Declare explicit cases
 inside a test target, composed module or `EXPORT TEST SUITE` / `USING SUITES (...)`
@@ -157,7 +164,7 @@ server configuration or containers. The runner uses real grants, storage and
 current disclosure checks, then closes sessions and deletes each owned database.
 Passing requires complete assertions and successful cleanup. The
 [test CLI](cli.md#application-table-tests) owns invocation and reporting; the
-[source contract](../../../contracts/APPLICATION_SOURCE_V1.md#isolated-table-tests)
+[source contract](https://github.com/spoke-sh/transitc/blob/main/contracts/APPLICATION_SOURCE_V1.md#isolated-table-tests)
 owns syntax and exact limits. Subject/grant controls, virtual clocks, effects,
 HTTP simulation and workflow replay remain unsupported source features.
 
@@ -168,11 +175,11 @@ have a pending acquisition for their next input; this assertion does not establi
 Queue emptiness or program idleness.
 It does not treat activation as completion or replay input. Follow it with Table
 and `CONSUME` row assertions to check state and Stream output. Exhausted polling
-or session budgets fail. The [Queue source fixture](../../../tests/fixtures/application-queue-programs/README.md),
-[nominal lookup fixture](../../../tests/fixtures/application-typed-queue/README.md)
-and [modular helper fixture](../../../tests/fixtures/application-modular-programs/README.md)
+or session budgets fail. The [Queue source fixture](https://github.com/spoke-sh/transitc/blob/main/tests/fixtures/application-queue-programs/README.md),
+[nominal lookup fixture](https://github.com/spoke-sh/transitc/blob/main/tests/fixtures/application-typed-queue/README.md)
+and [modular helper fixture](https://github.com/spoke-sh/transitc/blob/main/tests/fixtures/application-modular-programs/README.md)
 illustrate success, ordered guard refusal, post-call atomic rollback and isolation; the
-[test contract](../../../contracts/APPLICATION_SOURCE_V1.md#queue-program-tests)
+[test contract](https://github.com/spoke-sh/transitc/blob/main/contracts/APPLICATION_SOURCE_V1.md#queue-program-tests)
 defines observation limits and scope.
 
 ## Planned source language and build model
@@ -274,7 +281,7 @@ even after source, compiler or dependency changes. A successful build neither
 applies a migration nor proves that an existing deployment matches its basis.
 
 The delivered Table and public Queue test profile above resolves the same graph and uses the same
-SQL emitter as `transit build`. Extensions for application clocks, effect mocks
+SQL emitter as `transitc build`. Extensions for application clocks, effect mocks
 and workflow fault schedules remain planned. Test controls stay distinct from
 deployable SQL. Local tests qualify only their executed scenarios, not external
 providers, physical durability or distributed recovery.

@@ -2,6 +2,7 @@
 from runner.paths import ROOT
 from pathlib import Path
 import json
+import os
 import subprocess
 import tempfile
 import yaml
@@ -40,14 +41,19 @@ for executable in (runtime / 'bin/transit', gateway / 'bin/transit-sql-gateway')
     subprocess.run([str(executable), '--help'], cwd=source, check=True, stdout=subprocess.DEVNULL)
 with tempfile.TemporaryDirectory(prefix='transit-runtime-build-boundary-') as directory:
     # The explicit offline source must override CI's shared package directory.
-    command = ['zig', 'build', '--system', sources['zig'], '--pkg-dir', sources['zig'], '--cache-dir', directory]
+    # Isolate global tarballs too: the pinned Zig tries to unpack a globally
+    # cached lazy package even with --system, then asserts against read-only I/O.
+    # This proof must resolve only the selected distribution's dependency store.
+    environment = os.environ | {'ZIG_GLOBAL_CACHE_DIR': str(Path(directory) / 'global')}
+    command = ['zig', 'build', '--system', sources['zig'], '--pkg-dir', sources['zig'],
+               '--cache-dir', str(Path(directory) / 'local')]
     # Explicitly disabled registration cannot expose a successful test target.
     disabled = subprocess.run([*command, 'diagnostic-grammar', '-Dchecks=false'],
-                              cwd=source, capture_output=True, text=True)
+                              cwd=source, env=environment, capture_output=True, text=True)
     assert disabled.returncode != 0 and 'no such step: diagnostic-grammar' in disabled.stderr, disabled.stderr
     # Enabling tests requires their inputs. Do not silently skip absent sources.
     missing = subprocess.run([*command, 'diagnostic-grammar', '-Dchecks=true', '-Dsdk-examples=false'],
-                             cwd=source, capture_output=True, text=True)
+                             cwd=source, env=environment, capture_output=True, text=True)
     assert missing.returncode != 0 and 'FileNotFound' in missing.stderr, missing.stderr
     assert 'diagnostic_grammar.zig' in missing.stderr, missing.stderr
 print('Build boundary: packaged Transit and SQL gateway run without tests/SDKs; disabled and missing checks fail')

@@ -67,7 +67,7 @@ SDK and installer matrix must complete before closing their acceptance items.
 ## Remaining dependencies
 
 - After [M12](12-application-modules-compilation-and-testing.md) is qualified,
-  distribute `transit build` and `transit test` with their exact compiler/contract
+  distribute `transitc build` and `transitc test` with their exact compiler/contract
   identity and the common `.transit`/`build.transit` language. Exercise installed
   recursive builds, pinned package fetching and frozen offline rebuilds; verify
   that generated `.sql` executes on the declared compatible runtime without

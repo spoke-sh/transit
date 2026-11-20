@@ -1,11 +1,11 @@
 //! Canonical source-row repartitioning. Physical workers never alter a bound
 //! query, stable row identity, logical partition or ordered SUM evaluation.
 const std = @import("std");
-const r = @import("Relational.zig");
+const r = @import("transit_sql_frontend").Relational;
 const e = @import("RelationalExecution.zig");
 const native = @import("transit_protocol").Growth;
-const table = @import("TableSchema.zig");
-const values = @import("RelationalValues.zig");
+const table = @import("transit_sql_frontend").TableSchema;
+const values = @import("transit_sql_frontend").RelationalValues;
 pub const max_rows = 4;
 pub const fixed_bytes = 4 + 32 + 32 + 8 + 1 + 8 * 4 + 2 + max_rows * (20 + r.row_columns * values.fixed_bytes);
 pub const max_bytes = fixed_bytes + max_rows * values.max_text_bytes;
@@ -65,8 +65,8 @@ pub fn validateRow(plan: r.Plan, source: u8, row: e.Row) !void {
     const count = if (source == 0) plan.scalars.instructions.len else 0;
     const kernel = @import("RelationalKernel.zig").bind(plan);
     const selected = source != 0 or (kernel.filters[0].matches(row, null) and kernel.predicate.matches(row, null));
-    var inputs: [table.max_columns]@import("Types.zig").Field = undefined;
-    var fields: [r.ScalarProgram.max_instructions]@import("Types.zig").Field = undefined;
+    var inputs: [table.max_columns]@import("transit_sql_frontend").Types.Field = undefined;
+    var fields: [r.ScalarProgram.max_instructions]@import("transit_sql_frontend").Types.Field = undefined;
     if (count != 0) _ = try plan.scalars.validate((try plan.sources[0].schema.rowType(&inputs)).structure, &fields);
     for (row.values[128..][0..count], fields[0..count], 0..) |value, field, i| {
         if (selected and values.supported(field.type)) {

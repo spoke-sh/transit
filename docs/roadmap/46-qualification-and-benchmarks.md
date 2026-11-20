@@ -61,7 +61,7 @@ remains a gate for every preceding milestone.
   2D/3D spatial codecs and DBSP Z-set incremental `ST_Union`, `ST_3DUnion`, Discrete Divergence Theorem linear 3D volume aggregates and 2D/3D spatial/clash joins, compressed-domain `.dictionary`/`.fsst` evaluation, `comptime`/immutable
   perfect hashing, vectorized 256-doc Block-Max BM25 and hybrid search, HyPer-style
   data-centric push pipeline fusion, per-row-group dense non-null specialization,
-  Flying-Start Adaptive Morsel Tier-Up, `transit build` AOT-compiled queries/views,
+  Flying-Start Adaptive Morsel Tier-Up, `transitc build` AOT-compiled queries/views,
   leveled/tiered `.tseg` compaction bounds, `.tdel` tombstone reclamation,
   declarative partitioning/multi-dimensional clustering (`PARTITION BY`,
   `CLUSTER BY`), scan-resistant caching, external NVMe spill for window/join/sort
@@ -81,7 +81,7 @@ remains a gate for every preceding milestone.
   SQL through installed ordinary clients with source packages absent. Include
   capability/visibility failures, bounded evaluation, migration drift, dependency
   upgrades and replay of original migration bytes after source/compiler changes.
-  `transit test` must use the production emitter; report simulation coverage
+  `transitc test` must use the production emitter; report simulation coverage
   separately from provider and physical-durability evidence.
 
 - Qualify full declaration lifecycles: define data and computation, apply policy,

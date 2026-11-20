@@ -191,3 +191,14 @@ pass the anonymous download checks before nightly promotion. Preserve immutable
 tags and versioned bytes; do not replace the release to repair its access settings.
 See the [distribution contract](../docs/handbook/reference/distribution.md#publication-and-retries)
 for publication and retry guarantees.
+
+## Standalone SQL frontend distribution
+
+`python3 -B tasks/compiler_frontend.py --write` creates the deterministic
+`build/artifacts/transit-sql-frontend.tar.gz` package from the four authoritative
+SQL frontend, protocol, memory and spatial packages. The fast gate regenerates
+it in memory and rejects drift. Its root manifest exposes only those modules;
+it contains no runtime, Arrow, compiler or development-flake dependency.
+Standalone consumers pin the immutable archive URL and Zig content hash. The
+archive is a generated distribution, never another source owner. Refresh it
+with any change to its source packages or the root release version.

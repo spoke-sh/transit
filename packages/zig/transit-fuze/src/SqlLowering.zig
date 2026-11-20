@@ -1,19 +1,19 @@
 //! Source-independent lowering of the shared SQL AST into column ordinals.
 //! Logical type admission belongs to the selected typed plan profile.
 const std = @import("std");
-const sql = @import("Sql.zig");
-const finite = @import("Finite.zig");
+const sql = @import("transit_sql_frontend").Sql;
+const finite = @import("transit_sql_frontend").Finite;
 pub const Atom = union(enum) {
     all,
-    state: struct { column: u8, value: @import("Scalar.zig").State },
+    state: struct { column: u8, value: @import("transit_sql_frontend").Scalar.State },
     compare: struct { column: u8, op: finite.Comparison, literal: sql.Literal },
 };
 /// Borrows the caller's immutable AST until typed lowering copies admitted names.
 pub const OutputNames = union(enum) {
     none,
     projection: *const sql.Projection,
-    aggregate: *const @import("model.zig").Name,
-    pub fn get(self: OutputNames, index: usize) ?*const @import("model.zig").Name {
+    aggregate: *const @import("transit_sql_frontend").model.Name,
+    pub fn get(self: OutputNames, index: usize) ?*const @import("transit_sql_frontend").model.Name {
         return switch (self) {
             .none => null,
             .aggregate => |name| if (index == 0) name else null,
@@ -145,8 +145,8 @@ fn resolveProjected(column: sql.Column, source: []const u8, projection: *const P
     }
     return error.UnknownColumn;
 }
-fn validName(name: *const @import("model.zig").Name) !void {
-    if (name.len > name.bytes.len or !std.meta.eql(name.*, try @import("model.zig").Name.init(name.slice()))) return error.InvalidColumnName;
+fn validName(name: *const @import("transit_sql_frontend").model.Name) !void {
+    if (name.len > name.bytes.len or !std.meta.eql(name.*, try @import("transit_sql_frontend").model.Name.init(name.slice()))) return error.InvalidColumnName;
 }
 fn project(value: *const sql.Projection, source: []const u8, columns: []const []const u8, output: []u8, diagnostic: ?*sql.Binding) !Projection {
     if (columns.len == 0 or columns.len > output.len or columns.len > 255) return error.InvalidColumnCount;

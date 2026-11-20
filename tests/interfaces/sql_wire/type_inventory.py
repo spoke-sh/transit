@@ -17,8 +17,8 @@ def check(aliases, tags):
 
 
 if __name__ == '__main__':
-    aliases = (ROOT/'packages/zig/transit-fuze/src/SqlTypes.zig').read_text()
-    tags = (ROOT/'packages/zig/transit-fuze/src/Types.zig').read_text()
+    aliases = (ROOT/'packages/zig/transit-sql-frontend/src/SqlTypes.zig').read_text()
+    tags = (ROOT/'packages/zig/transit-sql-frontend/src/Types.zig').read_text()
     check(aliases, tags)
     for changed_aliases, changed_tags in (
         (aliases.replace('"INT"', '"UNCLASSIFIED_ALIAS"'), tags),

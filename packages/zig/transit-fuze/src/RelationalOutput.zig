@@ -1,8 +1,8 @@
 //! Canonical finite output record. Publication/manifest authority is external.
 const std = @import("std");
-const r = @import("Relational.zig");
+const r = @import("transit_sql_frontend").Relational;
 const e = @import("RelationalExecution.zig");
-const values = @import("RelationalValues.zig");
+const values = @import("transit_sql_frontend").RelationalValues;
 const native = @import("transit_protocol").Growth;
 const Self = @This();
 pub const fixed_bytes = 4 + 32 + 32 + 8 + 1 + @max(41, 1 + r.max_groups * values.fixed_bytes) + 1 + r.max_outputs * values.fixed_bytes + 1 + 44 + 2 * r.max_groups * values.fixed_bytes;
@@ -78,7 +78,7 @@ pub fn writeTo(self: Self, bound: r.Bound, writer: *std.Io.Writer) !void {
         try key.write(writer);
     }
     try writer.writeByte(self.row.len);
-    var fields: [r.max_outputs]@import("Types.zig").Field = undefined;
+    var fields: [r.max_outputs]@import("transit_sql_frontend").Types.Field = undefined;
     const schema = try bound.plan.outputSchema(&fields);
     var text_bytes: usize = 0;
     for (self.row.cells[0..self.row.len], schema.structure) |cell, field| {

@@ -37,7 +37,7 @@ to encode a type does not establish query execution support for that type.
 
 The [planned source language and build model](applications.md#planned-source-language-and-build-model)
 adds `.transit` modules, same-language `build.transit` programs and proposed
-`transit build` / `transit test` commands. Its output is executable `.sql` for the
+`transitc build` / `transitc test` commands. Its output is executable `.sql` for the
 ordinary SQL and migration interfaces above; it is not an installed entry point.
 The [compiler analysis](../internals/query-engine.md#planned-source-to-sql-compilation)
 defines the intended preservation and verification boundary.

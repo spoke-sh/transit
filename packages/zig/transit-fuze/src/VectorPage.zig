@@ -1,9 +1,9 @@
 //! Validated source-page adapters; codecs stay outside the pure column kernels.
 const std = @import("std");
-const t = @import("Types.zig");
+const t = @import("transit_sql_frontend").Types;
 const q = @import("LogicalQuery.zig");
 const m = @import("Unified.zig");
-const finite = @import("Finite.zig");
+const finite = @import("transit_sql_frontend").Finite;
 const k = @import("VectorKernel.zig");
 pub const Outcome = k.Outcome;
 const Atom = k.Atom;

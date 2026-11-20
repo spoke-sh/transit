@@ -1,14 +1,14 @@
 const std = @import("std");
-const Collation = @import("Collation.zig");
+const Collation = @import("transit_sql_frontend").Collation;
 const GermanStringMod = @import("GermanString.zig");
 const GermanString = GermanStringMod.GermanString;
 const GermanCell = GermanStringMod.GermanCell;
 const StringArena = GermanStringMod.StringArena;
 const PhysicalCodecs = @import("PhysicalCodecs.zig");
 const ColumnPredicate = @import("ColumnPredicate.zig");
-const TableSchema = @import("TableSchema.zig");
-const Types = @import("Types.zig");
-const Values = @import("Values.zig");
+const TableSchema = @import("transit_sql_frontend").TableSchema;
+const Types = @import("transit_sql_frontend").Types;
+const Values = @import("transit_sql_frontend").Values;
 const memory = @import("transit_memory");
 
 test "GermanString 16-byte layout, inline vs arena threshold, and differential collation equivalence" {

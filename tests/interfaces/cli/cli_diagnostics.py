@@ -103,16 +103,12 @@ for command in ('server',):
     assert b'--initialize' not in help_output
     assert help_output.rstrip().endswith(b'--help         Show this help')
     invoke([command, '--config', 'private-must-not-appear', '--help'], 0)
-for args in ([], ['--help'], ['console', '--help'], ['migrate', '--help'], ['migrate', 'plan', '--help'], ['build', '--help'], ['test', '--help']):
+for args in ([], ['--help'], ['console', '--help'], ['migrate', '--help'], ['migrate', 'plan', '--help']):
     invoke(args, 0)
-for sub in ('build', 'test'):
-    sub_help = invoke([sub, '--help'], 0, ('--color auto|off|on', 'Colorize human diagnostics (default: auto)')).stdout
-    assert sub_help.rstrip().endswith(b'--help                     Show this help')
+for removed in ('build', 'test'):
+    invoke([removed, '--help'], contains=('unknown command or misplaced global option',))
 for unsupported_cmd in (['server', '--color', 'off'], ['console', '--color', 'off'], ['migrate', 'plan', '--color', 'off']):
     invoke(unsupported_cmd, contains=('--color is not supported',))
-for bad_color in (['build', '--color'], ['build', '--color', 'never'], ['test', '--color', 'always']):
-    invoke(bad_color, contains=('--color must be auto, off or on',))
-invoke(['build', '--color', 'off', '--color', 'on'], contains=('--color can only be specified once',))
 version_output = invoke(['--version'], 0, env=NO_TOOLS_ENV, binary=str(ISOLATED_CLI)).stdout
 release = (ROOT / 'VERSION').read_text().strip().encode()
 assert re.fullmatch(rb'Transit ' + re.escape(release) + rb' \(git (?:[0-9a-f]{40}(?:-dirty)?|unknown); CLI contract 1\)\n', version_output), version_output
@@ -123,7 +119,7 @@ assert migrate_help.rstrip().endswith(b'--help               Show this help')
 root_help = invoke(['--help'], 0, ('Usage: transit COMMAND [OPTIONS]', 'Commands:', 'Options:')).stdout
 assert b'--initialize' not in root_help and b'--config' not in root_help
 commands = root_help.split(b'Commands:\n', 1)[1].split(b'\nOptions:', 1)[0]
-assert [line.split()[0] for line in commands.splitlines() if line.strip()] == [b'server', b'console', b'migrate', b'build', b'test']
+assert [line.split()[0] for line in commands.splitlines() if line.strip()] == [b'server', b'console', b'migrate']
 invoke(['private-must-not-appear'], contains=('unknown command', 'argument 1', 'transit --help'))
 invoke(['migrate'], contains=('requires a migration action', 'transit migrate --help'))
 invoke(['migrate', 'private-must-not-appear'], contains=('unknown migrate action', 'argument 2', 'transit migrate --help'))

@@ -1,7 +1,7 @@
 //! Bounded schema evidence. The mutable tree consumes a fixed metadata budget,
 //! independently of row count. Freeze allocates one owned logical descriptor.
 const std = @import("std");
-const types = @import("Types.zig");
+const types = @import("transit_sql_frontend").Types;
 const sem = types.Semantics;
 pub const max_nodes = 256;
 pub const max_names = 4096;

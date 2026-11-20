@@ -2,7 +2,7 @@
 //! Short values retain their original bytes inline; long values borrow immutable
 //! payloads from the batch or source owner and cache the declared sort prefix.
 const std = @import("std");
-const Collation = @import("Collation.zig");
+const Collation = @import("transit_sql_frontend").Collation;
 
 pub const Value = extern struct {
     len: u32,

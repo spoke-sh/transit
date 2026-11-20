@@ -488,7 +488,8 @@ packages:
     cd packages/zig/transit-station && zig build test
     cd packages/zig/transit-storage && zig build test
     cd packages/zig/transit-spatial && zig build test
-    cd packages/zig/transit-compiler && zig build test
+    cd packages/zig/transit-sql-frontend && zig build test
+    cd packages/zig/transit-test-protocol && zig build test
     cd packages/zig/transit-test && zig build test
     cd packages/zig/transit-fuze && zig build test
     cd packages/zig/transit-observability && zig build test
@@ -639,14 +640,6 @@ runtime-upgrade:
 # Generate/check the reference grammar and compare its covered AST with Postgres.
 sql-grammar:
     nix shell .#sql-tools --command python3 -B tests/runner/launch.py tests/query/sql/grammar.py
-
-# Independent source grammar, actual compiler ASTs, formatter and products.
-application-source-grammar:
-    nix shell .#sql-tools --command zig build test-application-source-grammar -Doptimize=ReleaseSafe
-
-# Source-only nominal substitution, exhaustive selection and specialization laws.
-application-source-types:
-    nix shell --inputs-from . nixpkgs#lean4 --command zig build test-application-source-types -Doptimize=ReleaseSafe
 
 # Independent application grammar/model and actual compiler round-trip.
 application-grammar:
@@ -1224,20 +1217,9 @@ managed-tables:
 source-declarations:
     zig build test-server-sources -Doptimize=ReleaseSafe
 
-# Pure typed application source compiler, including allocator and budget controls.
-application-compiler:
-    zig build test-application-compiler
-
-# Real offline dependency/build workflow and installed source-free SQL execution.
-application-build:
-    zig build test-application-build -Doptimize=ReleaseSafe
-
 # Shared typed assertion library and real isolated command journey.
 application-runner:
     zig build test-application-runner
-
-application-test:
-    zig build test-application-test -Doptimize=ReleaseSafe
 
 application-test-host:
     zig build test-application-test-host -Doptimize=ReleaseSafe

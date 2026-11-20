@@ -2,11 +2,11 @@
 //! column IDs resolve once; restore rebinds from the same validated saved plan.
 //! Constant one-lane views share the typed kernels without speculative reads.
 const std = @import("std");
-const r = @import("Relational.zig");
+const r = @import("transit_sql_frontend").Relational;
 const k = @import("VectorKernel.zig");
-const Truth = @import("PredicateTruth.zig").Truth;
+const Truth = @import("transit_sql_frontend").PredicateTruth.Truth;
 const Row = @import("RelationalExecution.zig").Row;
-const values = @import("RelationalValues.zig");
+const values = @import("transit_sql_frontend").RelationalValues;
 const Self = @This();
 const Predicate = struct {
     instructions: [r.max_instructions]k.Instruction = undefined,

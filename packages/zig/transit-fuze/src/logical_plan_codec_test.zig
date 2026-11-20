@@ -1,10 +1,10 @@
 const std = @import("std");
 const t = std.testing;
-const c = @import("LogicalPlanCodec.zig");
+const c = @import("transit_sql_frontend").LogicalPlanCodec;
 const q = @import("LogicalQuery.zig");
-const types = @import("Types.zig");
-const ddl = @import("TableDdl.zig");
-const select = @import("TableSelect.zig");
+const types = @import("transit_sql_frontend").Types;
+const ddl = @import("transit_sql_frontend").TableDdl;
+const select = @import("transit_sql_frontend").TableSelect;
 const basis: [32]u8 = @splat(7);
 fn roundtrip(allocator: std.mem.Allocator, schema: types.Type, bytes: []const u8, fingerprint: [32]u8) !void {
     var owned = try c.decode(allocator, schema, basis, bytes);
@@ -82,8 +82,8 @@ test "independent logical plan bytes bind the full row schema and exact query id
     const Fixture = struct { schema_hex: []const u8, select_hex: []const u8, select_fingerprint: []const u8 };
     const fixture = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/table-schema.json"), .{ .ignore_unknown_fields = true });
     defer fixture.deinit();
-    var schema_bytes: [@import("TableSchema.zig").max_bytes]u8 = undefined;
-    var table = try @import("TableSchema.zig").decode(t.allocator, try std.fmt.hexToBytes(&schema_bytes, fixture.value.schema_hex));
+    var schema_bytes: [@import("transit_sql_frontend").TableSchema.max_bytes]u8 = undefined;
+    var table = try @import("transit_sql_frontend").TableSchema.decode(t.allocator, try std.fmt.hexToBytes(&schema_bytes, fixture.value.schema_hex));
     defer table.deinit();
     var fields: [128]types.Field = undefined;
     const schema = try table.schema.rowType(&fields);

@@ -1,7 +1,7 @@
 const std = @import("std");
-const r = @import("Relational.zig");
-const sql = @import("RelationalSql.zig");
-const schema = @import("TableSchema.zig");
+const r = @import("transit_sql_frontend").Relational;
+const sql = @import("transit_sql_frontend").RelationalSql;
+const schema = @import("transit_sql_frontend").TableSchema;
 const t = std.testing;
 const columns = [_]schema.Column{ .{ .id = 1, .name = "key", .type = .int64 }, .{ .id = 2, .name = "value", .type = .int64 } };
 const sources = [_]r.Source{
@@ -22,7 +22,7 @@ test "relational qualified wildcard selects one source in schema order" {
         defer syntax.deinit();
         const plan = try syntax.bind(&inputs, .interactive, budgets, null);
         try t.expectEqual(columns.len, plan.outputs.len);
-        var fields: [2]@import("Types.zig").Field = undefined;
+        var fields: [2]@import("transit_sql_frontend").Types.Field = undefined;
         _ = try plan.outputSchema(&fields);
         for (fields) |field| try t.expectEqual(source_index == 1, field.nullable);
         for (plan.outputs, columns) |output, column| {
@@ -45,7 +45,7 @@ test "relational qualified wildcard selects one source in schema order" {
     }) |text| {
         var syntax = try sql.parse(t.allocator, text, null);
         defer syntax.deinit();
-        var location: @import("Sql.zig").Location = .{};
+        var location: @import("transit_sql_frontend").Sql.Location = .{};
         try t.expectError(error.UnknownRelationalSource, syntax.bind(&sources, .interactive, budgets, &location));
         try t.expectEqual(@as(usize, 7), location.offset);
     }
@@ -76,10 +76,10 @@ test "relational joined star expands both schemas with qualified output names" {
         var syntax = try sql.parse(t.allocator, text, null);
         defer syntax.deinit();
         const plan = try syntax.bind(&inputs, .interactive, budgets, null);
-        var fields: [4]@import("Types.zig").Field = undefined;
+        var fields: [4]@import("transit_sql_frontend").Types.Field = undefined;
         _ = try plan.outputSchema(&fields);
-        try t.expectEqual(@import("Types.zig").Type.int32, fields[0].type);
-        try t.expectEqual(@import("Types.zig").Type.int64, fields[2].type);
+        try t.expectEqual(@import("transit_sql_frontend").Types.Type.int32, fields[0].type);
+        try t.expectEqual(@import("transit_sql_frontend").Types.Type.int64, fields[2].type);
         const names = [_][]const u8{ "people.id", "people.name", "items.id", "items.value" };
         try t.expectEqual(names.len, plan.outputs.len);
         for (plan.outputs, names, 0..) |output, name, i| {
@@ -105,12 +105,12 @@ fn joinedStar(allocator: std.mem.Allocator) !void {
     defer arena.deinit();
     var parameters: sql.Parameters = .{};
     const plan = try syntax.bindParameters(arena.allocator(), &inputs, .interactive, budgets, null, &parameters, &.{ .{ .signed = 0 }, .{ .unsigned = 2 } });
-    var fields: [4]@import("Types.zig").Field = undefined;
+    var fields: [4]@import("transit_sql_frontend").Types.Field = undefined;
     _ = try plan.outputSchema(&fields);
     for (fields, [_][]const u8{ "l.key", "l.value", "r.key", "r.value" }, 0..) |field, name, i| {
         try t.expectEqualStrings(name, field.name);
         try t.expectEqual(i >= 2, field.nullable);
-        try t.expectEqual(@import("Types.zig").Type.int64, field.type);
+        try t.expectEqual(@import("transit_sql_frontend").Types.Type.int64, field.type);
     }
     try t.expectEqual(@as(?u64, 2), plan.limit);
     try t.expect(plan.order_by[0].expression.eql(.{ .column = .{ .source = 1, .id = 2 } }));
@@ -228,7 +228,7 @@ test "MySQL relational dialect preserves the same bound plan with backtick ident
 }
 
 test "relational parameters preserve typed templates through grouping ordering and null binding" {
-    const types = @import("Types.zig");
+    const types = @import("transit_sql_frontend").Types;
     var syntax = try sql.parse(t.allocator, "SELECT l.key, SUM(l.value) AS total FROM lefts l WHERE l.value > $1 GROUP BY l.key HAVING total > $1 ORDER BY total DESC LIMIT $2", null);
     defer syntax.deinit();
     var parameters: sql.Parameters = .{};
@@ -285,7 +285,7 @@ test "relational routing distinguishes clause words from existing names" {
 }
 
 test "relational HAVING binds a hidden scalar aggregate before inferring its operand" {
-    const decimal: @import("Types.zig").Type = .{ .decimal = .{ .precision = 8, .scale = 2 } };
+    const decimal: @import("transit_sql_frontend").Types.Type = .{ .decimal = .{ .precision = 8, .scale = 2 } };
     const cols = [_]schema.Column{
         .{ .id = 1, .name = "key", .type = .int64 },
         .{ .id = 2, .name = "value", .type = decimal },
@@ -317,7 +317,7 @@ test "relational SQL and the independent typed definition have the same identity
     try t.checkAllAllocationFailures(no_resize.allocator(), roundtrip, .{});
 }
 test "relational SQL binds shared three-valued predicates and precise unknown names" {
-    var location: @import("Sql.zig").Location = .{};
+    var location: @import("transit_sql_frontend").Sql.Location = .{};
     var syntax = try sql.parse(t.allocator, "SELECT l.value FROM lefts l WHERE NOT (l.key = -1 OR l.value IS NULL) AND l.value >= 3", &location);
     defer syntax.deinit();
     const plan = try syntax.bind(sources[0..1], .interactive, budgets, &location);
@@ -366,7 +366,7 @@ test "relational SQL binds HAVING, ORDER BY and LIMIT with output alias resoluti
 }
 
 test "relational editor expectations and source discovery share the executable parser" {
-    const Parser = @import("SqlTyped.zig");
+    const Parser = @import("transit_sql_frontend").SqlTyped;
     const Case = struct { text: []const u8, word: ?[]const u8 = null, name: ?Parser.NameRole = null, qualifier: ?[]const u8 = null, sum_only: bool = false };
     for ([_]Case{
         .{ .text = "SELECT ", .word = "COUNT", .name = .column },
@@ -416,7 +416,7 @@ test "relational clauses are not mistaken for an implicit source alias" {
     try t.expectEqual(1, grouped.groups.len);
 }
 test "STREAM_SLICE parses offset and UTC timestamp bounds and omits system columns from SELECT star" {
-    const stream_columns = [_]@import("TableSchema.zig").Column{
+    const stream_columns = [_]@import("transit_sql_frontend").TableSchema.Column{
         .{ .id = 1, .name = "key", .type = .int64 },
         .{ .id = 2, .name = "value", .type = .int64, .nullable = true },
         .{ .id = 3, .name = "_partition", .type = .uint64 },

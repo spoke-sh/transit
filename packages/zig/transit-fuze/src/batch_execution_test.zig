@@ -1,6 +1,6 @@
 const std = @import("std");
 const logical = @import("LogicalQuery.zig");
-const types = @import("Types.zig");
+const types = @import("transit_sql_frontend").Types;
 const Cell = types.Values.Cell;
 const Execution = @import("BatchExecution.zig").Execution;
 

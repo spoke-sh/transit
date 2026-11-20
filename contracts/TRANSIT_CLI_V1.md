@@ -12,15 +12,15 @@ explicit-submit terminal session; `-c SQL`, `-f FILE` and stdin run batch input.
 `transit migrate <plan|inspect|apply|status|resume|verify> [OPTIONS]` plans,
 applies, resumes and verifies ordered application schema and data migrations
 over the SQL session without reading `.transitrc` startup files.
-`transit build` compiles typed source modules offline and publishes independently
-executable SQL. Migration targets additionally synthesize Table CREATE/ADD SQL from an explicit
-offline basis, preserving historical bytes. The source and artifact profile is
-defined by [Application source and build v1](APPLICATION_SOURCE_V1.md).
-`transit test` runs explicitly selected Table and public Queue-program tests through that same compiler
-and isolated local database owners; the source contract owns its bounds and reports.
 These are the only public commands. `--help` and `--version` need no configuration,
 credentials, running installation or network. Unknown commands/options, repeated
 options, positional leftovers and incompatible versions fail before effects.
+Source compilation and suite orchestration belong to the separate
+[transitc](https://github.com/spoke-sh/transitc) commands `transitc build` and
+`transitc test`. Transit supplies the bounded [compiled-case host](TEST_HOST_V1.md)
+without importing compiler code. This private entry point accepts only compiled
+SQL/expectations and does not expose a source-language command.
+
 Version output is `Transit <semver> (git <revision>; CLI contract 1)` followed
 by a newline. The revision is the full build-source commit, with `-dirty` for
 modified source, or `unknown` when provenance is unavailable. It identifies the
@@ -73,7 +73,7 @@ or next step when useful. Known option errors name the option; unknown arguments
 use positions without echoing their values. Configuration decoding reports the
 file and parser location; semantic validation names fields. Known reasons use
 plain language, while untranslated failures retain their identifiers. Exhausted
-restarts remain distinct from the underlying role failure. Root help lists `server`, `console`, `migrate`, `build` and `test`; each command has offline `--help`. Supplied arguments remain strictly validated during help. Human wording and implementation error names
+restarts remain distinct from the underlying role failure. Root help lists `server`, `console` and `migrate`; each command has offline `--help`. Supplied arguments remain strictly validated during help. Human wording and implementation error names
 are not a versioned machine schema. Recovery advice preserves saved identity and
 never treats uncertainty as proof of rejection.
 
@@ -364,12 +364,8 @@ bytes plain.
 Console diagnostics highlight error labels, identifiers, categories, coordinates,
 carets and correction commands on terminal stderr. Nonempty `NO_COLOR` or
 `TERM=dumb` disables color; redirected stderr is plain even with
-`CLICOLOR_FORCE`. `transit build` and `transit test` additionally accept
-`--color auto|off|on` (`auto` by default, using the same `stderr` terminal,
-`NO_COLOR` and `TERM=dumb` rules; `off` forces plain text; `on` enables ANSI
-color on stderr while leaving `--format json` stdout plain). Other subcommands
-reject `--color`. Color does not change text, redaction, caret alignment, result
-stdout or timing-footer order.
+`CLICOLOR_FORCE`. Runtime subcommands reject `--color`. Color does not change
+text, redaction, caret alignment, result stdout or timing-footer order.
 Search acceptance returns the match to the editor; submitting requires another
 Enter. SQL and dot-command submissions append to `$HOME/.transit_history` as
 newline-delimited JSON strings with owner-only file permissions. Batch and startup

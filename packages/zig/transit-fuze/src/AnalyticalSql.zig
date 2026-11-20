@@ -7,9 +7,9 @@
 //! (`AVG`, `STDDEV_POP`/`SAMP`, `PERCENTILE_CONT`, `STRING_AGG`), and bounded
 //! Tier 2 NVMe spill accounting.
 const std = @import("std");
-const Collation = @import("Collation.zig");
-const Range = @import("Range.zig");
-const Types = @import("Types.zig");
+const Collation = @import("transit_sql_frontend").Collation;
+const Range = @import("transit_sql_frontend").Range;
+const Types = @import("transit_sql_frontend").Types;
 const v = Types.Values;
 
 pub const definition = "transit.fuze.analytical-sql.v1.2026-10-30";

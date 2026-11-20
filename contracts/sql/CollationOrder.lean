@@ -1,7 +1,7 @@
 /-
 Formal specification of Collation-governed total preorders, Umbra 4-byte prefix
 monotonicity, and zone-map range pruning soundness, per
-packages/zig/transit-fuze/src/Collation.zig, OrderedKeyIndex.zig, and
+packages/zig/transit-sql-frontend/src/Collation.zig, OrderedKeyIndex.zig, and
 SegmentFormat.zig (COLLATION-01).
 -/
 

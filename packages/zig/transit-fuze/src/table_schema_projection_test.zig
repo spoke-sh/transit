@@ -1,8 +1,8 @@
 const std = @import("std");
 const t = std.testing;
-const s = @import("TableSchema.zig");
-const Projection = @import("TableSchemaProjection.zig");
-const Cell = @import("Types.zig").Values.Cell;
+const s = @import("transit_sql_frontend").TableSchema;
+const Projection = @import("transit_sql_frontend").TableSchemaProjection;
+const Cell = @import("transit_sql_frontend").Types.Values.Cell;
 fn number(value: i128) Cell {
     return .{ .value = .{ .atom = .{ .signed = value } } };
 }

@@ -1,8 +1,8 @@
 const std = @import("std");
 const t = std.testing;
 const f = @import("FileQuery.zig");
-const types = @import("Types.zig");
-const Truth = @import("Finite.zig").Truth;
+const types = @import("transit_sql_frontend").Types;
+const Truth = @import("transit_sql_frontend").Finite.Truth;
 const Program = f.Program;
 const Instruction = Program.Instruction;
 const schema: types.Type = .{ .structure = &.{

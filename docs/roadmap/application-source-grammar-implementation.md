@@ -10,7 +10,7 @@ The acceptance commands below remain requirements, not passing evidence until
 their completed runs are recorded in the qualification ledger.
 
 Give application authors an independently checked definition of the language
-already accepted by `transit build` and `transit test`, and give subsequent
+already accepted by `transitc build` and `transitc test`, and give subsequent
 language work a precise compilation contract. Deliver the source ANTLR grammar,
 production-parser correspondence, bounded source round-trips and typed-core
 contract in one implementation PR with the logical commits below.
@@ -31,18 +31,18 @@ implementation if main advances.
 | Owner | Existing behavior and implication for this slice |
 | --- | --- |
 | [Application source contract](../../contracts/APPLICATION_SOURCE_V1.md) | Defines the bounded module/build/test language and explicitly records the missing ANTLR reference. Extend this owner; do not use the interface/UI contract as a source-language specification. |
-| [Syntax](../../packages/zig/transit-compiler/src/Syntax.zig) | Public source AST and parser cover imports, dependencies, interfaces, modules, targets, expressions, conditionals, tests and assertions. SQL bodies and expected rows retain token slices; the parser is not a whole-program semantic checker. |
-| [Graph](../../packages/zig/transit-compiler/src/Graph.zig), [Compiler](../../packages/zig/transit-compiler/src/Compiler.zig), [WorkingCatalog](../../packages/zig/transit-compiler/src/WorkingCatalog.zig), [Test](../../packages/zig/transit-compiler/src/Test.zig) | Resolve/evaluate the graph, substitute typed operands, prepare Table statements, construct test plans and independently reparse emitted SQL. Preserve these production owners and their limits. |
-| [SqlInput](../../packages/zig/transit-fuze/src/SqlInput.zig), [SqlScript](../../packages/zig/transit-fuze/src/SqlScript.zig) | Shared byte-based scanning and compound framing precede source parsing. Changes can affect console/migration/runtime consumers and expand required regression gates. |
+| [Syntax](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-compiler/src/Syntax.zig) | Public source AST and parser cover imports, dependencies, interfaces, modules, targets, expressions, conditionals, tests and assertions. SQL bodies and expected rows retain token slices; the parser is not a whole-program semantic checker. |
+| [Graph](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-compiler/src/Graph.zig), [Compiler](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-compiler/src/Compiler.zig), [WorkingCatalog](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-compiler/src/WorkingCatalog.zig), [Test](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-compiler/src/Test.zig) | Resolve/evaluate the graph, substitute typed operands, prepare Table statements, construct test plans and independently reparse emitted SQL. Preserve these production owners and their limits. |
+| [SqlInput](../../packages/zig/transit-sql-frontend/src/SqlInput.zig), [SqlScript](../../packages/zig/transit-sql-frontend/src/SqlScript.zig) | Shared byte-based scanning and compound framing precede source parsing. Changes can affect console/migration/runtime consumers and expand required regression gates. |
 | [SQL grammar](../../contracts/sql/TransitExtensions.g4), [independent SQL adapter](../../tests/query/sql/reference.py) | Reusable syntax, pinned ANTLR generation, strict errors and ambiguity detection exist. SQL has broader syntax than the executable source profile. Reuse rules without importing broader runtime support by implication. |
 | [Application interface grammar](../../contracts/application/Application.g4), [its proof](../../tests/interfaces/installation/application_grammar.py) | Cover interface/UI declarations and model round-trips, not modules/builds/tests. Preserve their separate grammar, task and scope. |
-| [Build proof](../../tests/interfaces/cli/application_build.py), [Table test proof](../../tests/interfaces/cli/application_test.py) | Existing CLI, frozen resolution, emitted-SQL and runtime regression oracles. Reuse their synthetic fixtures and complete outcomes; do not recreate the runner or resolver. |
+| [Build proof](https://github.com/spoke-sh/transitc/blob/main/tests/integration/application_build.py), [Table test proof](https://github.com/spoke-sh/transitc/blob/main/tests/integration/application_test.py) | Existing CLI, frozen resolution, emitted-SQL and runtime regression oracles. Reuse their synthetic fixtures and complete outcomes; do not recreate the runner or resolver. |
 
 ## Review boundary
 
 Include:
 
-- A dedicated `contracts/application-source/TransitSource.g4`, README and
+- A dedicated `transitc/contracts/application-source/TransitSource.g4`, README and
   independently authored positive/negative corpus for the delivered profile.
 - Explicit source lexical rules, precedence, block boundaries, typed SQL holes,
   build/test stage rules and source-location conventions.
@@ -249,7 +249,7 @@ semantics or tooling changes.
 | Grammar independence | Strict ANTLR parsing and real Zig ASTs agree with hand-authored expectations; exact corpus inventory and intended negative controls pass; no expected result is copied from the compiler |
 | Deterministic round-trips | Canonical source parses identically, formats idempotently and compiles to equivalent ordered SQL/logical test products; source-derived provenance/case identities change only as documented, while bindings, literals, actions and expectations remain equivalent |
 | Bounds and diagnostics | Existing 1 MiB/file, aggregate source, nesting, work, memory and SQL-output limits remain enforced; at/over-bound and allocation-failure cases produce no complete artifact; Unicode/CRLF coordinates remain correct |
-| Consumer preservation | Existing real `transit build`/`transit test` fixtures retain SQL, typed results, command counts and refusals under frozen offline resolution; verification tooling is absent from the installed runtime dependency closure |
+| Consumer preservation | Existing real `transitc build`/`transitc test` fixtures retain SQL, typed results, command counts and refusals under frozen offline resolution; verification tooling is absent from the installed runtime dependency closure |
 
 The delivered task is `just test::application-source-grammar`.
 It builds the private Zig driver, generates ANTLR with the pinned SQL tools

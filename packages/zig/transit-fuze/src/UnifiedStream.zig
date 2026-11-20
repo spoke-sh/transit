@@ -136,11 +136,11 @@ pub fn stepDiagnostic(bound: m.Plan.Bound, previous: Progress, page: m.Page, wor
             },
         }
         next.selected = try std.math.add(u64, next.selected, 1);
-        if (bound.plan.aggregate == .count_values) next.value_count = @import("Finite.zig").countValue(next.value_count, row.cells[bound.plan.projection[0]]) catch |err| {
+        if (bound.plan.aggregate == .count_values) next.value_count = @import("transit_sql_frontend").Finite.countValue(next.value_count, row.cells[bound.plan.projection[0]]) catch |err| {
             if (diagnostic) |detail| detail.* = .{ .operation = .count, .row = next.scanned, .page_row = @intCast(row_index), .column = bound.plan.projection[0] };
             return err;
         };
-        if (bound.plan.aggregate == .sum) next.sum = @import("Finite.zig").sum(next.sum, row.cells[bound.plan.projection[0]], struct {
+        if (bound.plan.aggregate == .sum) next.sum = @import("transit_sql_frontend").Finite.sum(next.sum, row.cells[bound.plan.projection[0]], struct {
             fn integer(value: m.Scalar) !i64 {
                 return value.int64;
             }

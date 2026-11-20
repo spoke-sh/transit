@@ -7,9 +7,9 @@
 //! compressed-domain codecs and vectorized Block-Max WAND / `MAXSCORE` operators
 //! can be verified differentially against an unpruned ground-truth model.
 const std = @import("std");
-const Types = @import("Types.zig");
-const Values = @import("Values.zig");
-const Collation = @import("Collation.zig");
+const Types = @import("transit_sql_frontend").Types;
+const Values = @import("transit_sql_frontend").Values;
+const Collation = @import("transit_sql_frontend").Collation;
 
 pub const max_tokens_per_doc: usize = 512;
 pub const max_token_bytes: usize = 128;

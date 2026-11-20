@@ -2,9 +2,9 @@
 //! semantics are shared with native Unified plans. All source rows are decoded
 //! and verified even when projection/filter/limit would discard their values.
 const std = @import("std");
-const types = @import("Types.zig");
+const types = @import("transit_sql_frontend").Types;
 const source = @import("FileSource.zig");
-const finite = @import("Finite.zig");
+const finite = @import("transit_sql_frontend").Finite;
 const values = types.Values;
 const lowering = @import("SqlLowering.zig");
 
@@ -24,7 +24,7 @@ pub const Compiled = struct {
 pub fn compile(allocator: std.mem.Allocator, text: []const u8, name: []const u8, binding: *const source.Binding) !Compiled {
     return compileDiagnostic(allocator, text, name, binding, null);
 }
-pub fn compileDiagnostic(allocator: std.mem.Allocator, text: []const u8, name: []const u8, binding: *const source.Binding, diagnostic: ?*@import("Sql.zig").Binding) !Compiled {
+pub fn compileDiagnostic(allocator: std.mem.Allocator, text: []const u8, name: []const u8, binding: *const source.Binding, diagnostic: ?*@import("transit_sql_frontend").Sql.Binding) !Compiled {
     if (diagnostic) |detail| detail.* = .{};
     try binding.validateMetadata();
     var descriptor = try binding.schema.type.clone(allocator);
@@ -33,9 +33,9 @@ pub fn compileDiagnostic(allocator: std.mem.Allocator, text: []const u8, name: [
     var arena: std.heap.ArenaAllocator = .init(allocator);
     errdefer arena.deinit();
     const alloc = arena.allocator();
-    var ast: @import("Sql.zig").Ast = undefined;
-    var location: @import("Sql.zig").Location = .{};
-    try @import("Sql.zig").parseInto(text, &ast, if (diagnostic != null) &location else null);
+    var ast: @import("transit_sql_frontend").Sql.Ast = undefined;
+    var location: @import("transit_sql_frontend").Sql.Location = .{};
+    try @import("transit_sql_frontend").Sql.parseInto(text, &ast, if (diagnostic != null) &location else null);
     var names: [128][]const u8 = undefined;
     for (schema.structure, 0..) |field, i| names[i] = field.name;
     var input: [128]u8 = undefined;
@@ -77,7 +77,7 @@ pub fn compileDiagnostic(allocator: std.mem.Allocator, text: []const u8, name: [
     try plan.validateShape();
     return .{ .arena = arena, .descriptor = descriptor, .plan = plan };
 }
-fn lowerAtom(allocator: std.mem.Allocator, atom: lowering.Atom, schema: types.Type, diagnostic: ?*@import("Sql.zig").Binding) !Plan.Atom {
+fn lowerAtom(allocator: std.mem.Allocator, atom: lowering.Atom, schema: types.Type, diagnostic: ?*@import("transit_sql_frontend").Sql.Binding) !Plan.Atom {
     return switch (atom) {
         .all => .all,
         .state => |state| .{ .state = .{ .column = state.column, .value = state.value } },
@@ -89,7 +89,7 @@ fn lowerAtom(allocator: std.mem.Allocator, atom: lowering.Atom, schema: types.Ty
                 if (diagnostic) |detail| {
                     detail.expected = @tagName(schema.structure[comparison.column].type);
                     detail.actual = @tagName(scalar);
-                    @import("Sql.zig").Binding.supplied(detail, scalar);
+                    @import("transit_sql_frontend").Sql.Binding.supplied(detail, scalar);
                 }
                 return err;
             };

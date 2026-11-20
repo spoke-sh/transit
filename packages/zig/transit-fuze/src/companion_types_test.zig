@@ -174,8 +174,8 @@ test "PAD SPACE comparison and sort keys preserve prefix control-byte ordering" 
         // and compare unsigned bytes. Do not derive expected from sort keys.
         var l: [64]u8 = @splat(0x40);
         var r: [64]u8 = @splat(0x40);
-        const ll = (try @import("Ebcdic037.zig").encode(left, &l)).len;
-        const rl = (try @import("Ebcdic037.zig").encode(right, &r)).len;
+        const ll = (try @import("transit_sql_frontend").Ebcdic037.encode(left, &l)).len;
+        const rl = (try @import("transit_sql_frontend").Ebcdic037.encode(right, &r)).len;
         const n = @max(ll, rl);
         const expected = std.mem.order(u8, l[0..n], r[0..n]);
         try testing.expectEqual(expected, try Collation.compareBytesProfile(left, right, .ebcdic_037_pad));

@@ -24,14 +24,14 @@ establish an equivalent SQL operation.
 
 The checked owners are [TransitExtensions.g4](../../../../contracts/sql/TransitExtensions.g4),
 [Application.g4](../../../../contracts/application/Application.g4) and
-[TransitSource.g4](../../../../contracts/application-source/TransitSource.g4).
+[TransitSource.g4](https://github.com/spoke-sh/transitc/blob/main/contracts/application-source/TransitSource.g4).
 Their [corpus and limits](../../../../contracts/sql/README.md) establish selected
 syntax/AST agreement, not general PostgreSQL or SQL-standard compatibility.
 
 `Application.g4` covers interface/UI declarations. The separate
 [`.transit` source/build/test profile](../../../../contracts/APPLICATION_SOURCE_V1.md)
 has its own independent ANTLR reference, production AST comparison and bounded
-source formatter. Its [corpus and limits](../../../../contracts/application-source/README.md)
+source formatter. Its [corpus and limits](https://github.com/spoke-sh/transitc/blob/main/contracts/application-source/README.md)
 cover imports, modules, interfaces, builds, tests and complete Table templates.
 Structural syntax is checked even in unused bodies; schema binding, target
 placement and runtime authority retain separate checks. Finite parser and

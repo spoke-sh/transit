@@ -16,7 +16,7 @@ they do not establish an automatic SQL materialized-view service.
 
 ## Bounded application source compilation
 
-[transit-compiler](../../../packages/zig/transit-compiler/README.md) accepts
+[transitc-compiler](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-compiler/README.md) accepts
 resolved immutable source buffers and compiler/resolution identity. It parses
 source with Fuze's shared file framer and the compiler's source/template parser,
 resolves public imports and interfaces,
@@ -34,7 +34,7 @@ share one compiler memory budget.
 
 Stream and Queue handles also retain their exact resource kind and schema.
 `LogDdl`, `LogAppendSql` and `LogConsumeSql` own their statement checking.
-[`ProgramLowering`](../../../packages/zig/transit-compiler/src/ProgramLowering.zig)
+[`ProgramLowering`](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-compiler/src/ProgramLowering.zig)
 validates pure `FUNCTION`, ordered `GUARD` and inline atomic `PROCEDURE`
 declarations across a non-recursive call DAG, checks function bodies through
 Fuze's `ScalarProgram` owner, hoists multi-use impure call arguments once, and
@@ -43,7 +43,7 @@ hygienic `"__t$<n>_<name>"` bindings while retaining both definition and invocat
 spans. A returning procedure has one final top-level `RETURN`; argument and return
 expressions evaluate once within the caller's existing atomic boundary. Physical
 types and nominal domains are checked before source-only helpers are erased.
-[ProgramCheck](../../../packages/zig/transit-compiler/src/ProgramCheck.zig)
+[ProgramCheck](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-compiler/src/ProgramCheck.zig)
 collects a Queue program's referenced resources, then uses the installed
 `ApplicationProgram` type binder, schema mapping and public-data facility set.
 It fingerprints the ordered instruction tree, atomic boundaries and resource
@@ -58,14 +58,14 @@ the shared control transitions; this establishes no current authorization.
 
 The typed-target implementation at source `16cf8399e` asks whether equal physical
 values can remain distinct during composition without introducing a second
-runtime type authority. [SourceTypes](../../../packages/zig/transit-compiler/src/SourceTypes.zig)
+runtime type authority. [SourceTypes](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-compiler/src/SourceTypes.zig)
 retains the resolved domain declaration alongside its scalar type and value.
 Explicit domain identities must be unique in the resolved graph. Immutable
 Table handles retain their binding, native schema, column annotations and
 declaring invocation; interfaces compare the exact schema and domains. Forwarding
 a handle preserves that binding rather than allocating another Table.
 
-[TypedOperands](../../../packages/zig/transit-compiler/src/TypedOperands.zig)
+[TypedOperands](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-compiler/src/TypedOperands.zig)
 checks assignments, predicates and projections using the owning Fuze ASTs and
 source spans. Nominal operands remain typed beside temporary SQL parameters
 until their resolved column roles have been checked. Only then does emission
@@ -77,7 +77,7 @@ the separate checked representation retains the Table, column, domain and
 operand for independent comparisons. It is in-memory evidence, excluded from
 persisted artifact provenance.
 
-[Compiler](../../../packages/zig/transit-compiler/src/Compiler.zig) checks every
+[Compiler](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-compiler/src/Compiler.zig) checks every
 arm of a reached exhaustive MATCH with symbolic payload types and forked
 proposed catalogs. These checks emit no actions and publish no schema changes
 to the caller. The selected concrete arm then contributes its ordered statements.
@@ -89,9 +89,9 @@ from justifying a recursive call with a different Table. Acquiring exports from
 such a discharged edge, or changing schema/export shape under a symbolic IF,
 rejects. Branch allocations and checking consume the existing compiler budgets.
 
-The [source verification owner](../../../tests/query/application_source/README.md)
+The [source verification owner](https://github.com/spoke-sh/transitc/blob/main/tests/query/application_source/README.md)
 defines reproducible grammar, Lean and finite correspondence checks. The
-[Lean specification](../../../contracts/application-source/TypedTarget.lean)
+[Lean specification](https://github.com/spoke-sh/transitc/blob/main/contracts/application-source/TypedTarget.lean)
 models typed substitution, complete unique arm selection and ordered Table
 insert preservation alongside nominal program domain erasure, five-state pure
 function substitution, ordered guard refusal non-commutativity and hygienic
@@ -103,8 +103,8 @@ action program. Independent expectations compare both interpretations with
 Zig's checked actions, program projections and emitted SQL, including equal raw
 values in different domains and reordered guard chains. This is a model proof plus finite implementation comparisons, not a
 proof of the Zig parser, checker, SQL executor or all compiler programs. Real
-[CLI fixtures](../../../tests/fixtures/application-typed-targets/README.md) and
-the [modular Queue fixture](../../../tests/fixtures/application-modular-programs/README.md)
+[CLI fixtures](https://github.com/spoke-sh/transitc/blob/main/tests/fixtures/application-typed-targets/README.md) and
+the [modular Queue fixture](https://github.com/spoke-sh/transitc/blob/main/tests/fixtures/application-modular-programs/README.md)
 separately exercise source-free SQL, counts, rows, rollback and current authority.
 
 This design pays for checking every reached arm and retaining annotations before
@@ -120,14 +120,14 @@ branches. Template holes retain identifier, type, value, resource-kind or
 unresolved-operand roles and byte spans;
 syntax checking supplies neither dummy values nor a catalog. Name/type/target
 checks and native execution retain their own stages. The independent
-[source grammar check](../../../contracts/application-source/README.md) compares
+[source grammar check](https://github.com/spoke-sh/transitc/blob/main/contracts/application-source/README.md) compares
 ANTLR trees with the actual source AST, hand-authored expectations and bounded
 source round-trips. It separately verifies attribution and case-identity
 derivation while comparing emitted SQL, bindings, fingerprints and test actions.
 The grammar tools and private projection executable are verification facilities,
 not dependencies of the installed compiler.
 
-[CatalogDiff](../../../packages/zig/transit-compiler/src/CatalogDiff.zig) compares
+[CatalogDiff](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-compiler/src/CatalogDiff.zig) compares
 desired public Tables with an explicit offline basis. It reconstructs the prior
 definitions from verified immutable migration SQL through `TableDdl` and
 `TableEvolution`, then permits new Tables and safe trailing columns. Generated
@@ -152,7 +152,7 @@ ordinary statement owner; an uncertain admission fails the case without SQL
 resubmission. Workflow assertions inspect the frozen declaration, repeat current
 resource and control-read checks, and compare recorded counters within explicit
 observation and case budgets. They do not prove idleness or input exhaustion.
-The [Queue fixture](../../../tests/fixtures/application-queue-programs/README.md)
+The [Queue fixture](https://github.com/spoke-sh/transitc/blob/main/tests/fixtures/application-queue-programs/README.md)
 owns independent expected rows and counters, source-free installed execution,
 rollback, lost-reply and retained-restart checks. The existing Lean laws above
 do not extend to ordered program execution.
@@ -179,7 +179,7 @@ plans and Catalog descriptors remain internal shared representations; generated
 SQL must carry the complete executable meaning rather than depend on a separate
 source interpreter or privileged build-time result.
 
-The [compilation core contract](../../../contracts/APPLICATION_SOURCE_V1.md#compilation-core-and-extension-obligations)
+The [compilation core contract](https://github.com/spoke-sh/transitc/blob/main/contracts/APPLICATION_SOURCE_V1.md#compilation-core-and-extension-obligations)
 sets the information each extension must preserve: nominal/domain identity,
 cardinality and cell states, interface obligations, ordered guards/effects,
 capability ownership, state transitions and exact observation/proof basis.
@@ -238,7 +238,7 @@ resource-budget failures, unsupported-target rejection and generated SQL execute
 through ordinary clients without source files. Compare bound definitions and
 ordered outcomes against hand-expanded SQL, then test migration replay after
 source/dependency changes and revocation between compilation and execution.
-`transit test` must exercise the same emitter and real database components, with
+`transitc test` must exercise the same emitter and real database components, with
 explicit test-only clock/effect controls. These are proposed checks; current
 [qualification evidence](../../history/qualification/README.md) covers the bounded
 Table source/build/test profile, not these broader features, their performance or
@@ -1365,7 +1365,7 @@ Out-of-range values reject instead of rounding or underflowing to zero. RLE and
 dictionary distinguish floating zero signs because compression must preserve
 stored bytes even though SQL equality treats those zeros as equal.
 
-[`Ebcdic037`](../../../packages/zig/transit-fuze/src/Ebcdic037.zig) uses the full
+[`Ebcdic037`](../../../packages/zig/transit-sql-frontend/src/Ebcdic037.zig) uses the full
 [Unicode-hosted CP037 table 2.00](https://www.unicode.org/Public/MAPPINGS/VENDORS/MICSFT/EBCDIC/CP037.TXT),
 including controls and Latin-1 scalars. Encoding iterates UTF-8 codepoints;
 reinterpreting UTF-8 bytes as Latin-1 would corrupt accented text. CP037 has a

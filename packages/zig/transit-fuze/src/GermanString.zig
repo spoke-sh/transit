@@ -12,12 +12,12 @@
 //!     `generation: u8`) addressing a 64B-zero-padded `StringArena` / `Workspace`
 //!     slab or pinned `.tseg` page buffer.
 const std = @import("std");
-const Collation = @import("Collation.zig");
-const Ebcdic037 = @import("Ebcdic037.zig");
-const Ebcdic1047 = @import("Ebcdic1047.zig");
-const PerfectHash = @import("PerfectHash.zig");
-const Types = @import("Types.zig");
-const Values = @import("Values.zig");
+const Collation = @import("transit_sql_frontend").Collation;
+const Ebcdic037 = @import("transit_sql_frontend").Ebcdic037;
+const Ebcdic1047 = @import("transit_sql_frontend").Ebcdic1047;
+const PerfectHash = @import("transit_sql_frontend").PerfectHash;
+const Types = @import("transit_sql_frontend").Types;
+const Values = @import("transit_sql_frontend").Values;
 
 pub const inline_max_bytes: u32 = 12;
 pub const padding_bytes: usize = PerfectHash.padding_bytes;

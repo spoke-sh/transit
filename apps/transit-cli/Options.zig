@@ -6,8 +6,7 @@ pub const Format = enum { table, json };
 pub const MigrateAction = sdk.protocol.Migration.ActionKind;
 pub const max_migrate_files = 16;
 pub const Options = struct {
-    command: enum { help, version, console, server, migrate, build, @"test" },
-    build: @import("BuildOptions.zig") = .{},
+    command: enum { help, version, console, server, migrate },
     path: ?[]const u8 = null,
     path_from_environment: bool = false,
     format: ?Format = null,
@@ -42,15 +41,10 @@ pub fn parseDiagnosed(args: []const []const u8, console_config: ?[]const u8, dia
     if (args.len == 0) return .{ .command = .help };
     if (args.len == 1 and std.mem.eql(u8, args[0], "--help")) return .{ .command = .help };
     if (args.len == 1 and std.mem.eql(u8, args[0], "--version")) return .{ .command = .version };
-    var result: Options = .{ .command = if (std.mem.eql(u8, args[0], "console")) .console else if (std.mem.eql(u8, args[0], "server")) .server else if (std.mem.eql(u8, args[0], "migrate")) .migrate else if (std.mem.eql(u8, args[0], "build")) .build else if (std.mem.eql(u8, args[0], "test")) .@"test" else {
+    var result: Options = .{ .command = if (std.mem.eql(u8, args[0], "console")) .console else if (std.mem.eql(u8, args[0], "server")) .server else if (std.mem.eql(u8, args[0], "migrate")) .migrate else {
         diagnostic.atArgument(1, null);
         return diagnostic.invalidArgument("unknown command or misplaced global option");
     } };
-    if (result.command == .build or result.command == .@"test") {
-        result.build = try @import("BuildOptions.zig").parseMode(args[1..], diagnostic, result.command == .@"test");
-        result.help = result.build.help;
-        return result;
-    }
     if (result.command == .migrate) return parseMigrate(args, console_config, &result, diagnostic);
     const server = result.command == .server;
     diagnostic.command = if (server) "transit server" else "transit console";
@@ -218,8 +212,6 @@ pub fn writeHelp(io: std.Io, options: Options) !void {
         .server => @import("Help.zig").server,
         .console => @import("Help.zig").console,
         .migrate => @import("Help.zig").migrate,
-        .build => @import("Help.zig").build,
-        .@"test" => @import("Help.zig").@"test",
         else => @import("Help.zig").root,
     });
 }
@@ -283,6 +275,4 @@ test "migrate parses actions, target assertions and rejects console/server flags
         &.{ "console", "--color", "off" },
         &.{ "migrate", "plan", "--dir", "m", "--color", "off" },
     }) |args| try t.expectError(error.InvalidInvocation, parse(args));
-    try t.expectEqual(@import("BuildOptions.zig").ColorMode.off, (try parse(&.{ "build", "--color", "off" })).build.color);
-    try t.expectEqual(@import("BuildOptions.zig").ColorMode.on, (try parse(&.{ "test", "--color", "on" })).build.color);
 }

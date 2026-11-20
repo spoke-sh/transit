@@ -2,13 +2,13 @@
 //! Outcomes keep unknown and eager source failures distinct for later Boolean
 //! composition. The caller owns the immutable literal for the entire operation.
 const std = @import("std");
-const Types = @import("Types.zig");
-const Values = @import("Values.zig");
-const TableSchema = @import("TableSchema.zig");
-const Collation = @import("Collation.zig");
-const Finite = @import("Finite.zig");
-const Machine = @import("PredicateMachine.zig");
-const LogicalPredicate = @import("LogicalPredicate.zig");
+const Types = @import("transit_sql_frontend").Types;
+const Values = @import("transit_sql_frontend").Values;
+const TableSchema = @import("transit_sql_frontend").TableSchema;
+const Collation = @import("transit_sql_frontend").Collation;
+const Finite = @import("transit_sql_frontend").Finite;
+const Machine = @import("transit_sql_frontend").PredicateMachine;
+const LogicalPredicate = @import("transit_sql_frontend").LogicalPredicate;
 
 pub const Atom = struct {
     column: u8,

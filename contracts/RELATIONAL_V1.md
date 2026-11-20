@@ -1,6 +1,6 @@
 # Relational semantics v1
 
-Fuze's [Relational module](../packages/zig/transit-fuze/src/Relational.zig)
+Fuze's [Relational module](../packages/zig/transit-sql-frontend/src/Relational.zig)
 supplies pure typed-plan validation, stable column resolution, output descriptors,
 prepared/bound fingerprints and scalar null/count/sum rules. Slices borrow
 immutable caller storage. Operations allocate no heap memory and acquire no

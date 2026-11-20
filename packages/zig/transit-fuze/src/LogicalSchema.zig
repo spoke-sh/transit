@@ -1,8 +1,8 @@
 //! Reflected structural JSON Schemas for recursive logical documents. Semantic
 //! ranges/traits and global budgets remain checked by the shared logical codec.
 const std = @import("std");
-const json = @import("LogicalJson.zig");
-const types = @import("Types.zig");
+const json = @import("transit_sql_frontend").LogicalJson;
+const types = @import("transit_sql_frontend").Types;
 const Graph = struct {
     // Construct the exact reachable type graph at comptime, including cycles.
     nodes: []const type = &.{},

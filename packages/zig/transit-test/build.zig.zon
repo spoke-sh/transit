@@ -4,7 +4,7 @@
     .fingerprint = 0xbf698b36395ef30b,
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{
-        .transit_compiler = .{ .path = "../transit-compiler" },
+        .transit_test_protocol = .{ .path = "../transit-test-protocol" },
         .transit_memory = .{ .path = "../transit-memory" },
         .transit_sql_service = .{ .path = "../transit-sql-service" },
     },

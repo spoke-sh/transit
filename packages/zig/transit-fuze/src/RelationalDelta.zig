@@ -1,10 +1,10 @@
 //! Canonical paired changes between complete maintained results. A record is
 //! staged evidence; only its owning complete revision admits the transaction.
 const std = @import("std");
-const r = @import("Relational.zig");
+const r = @import("transit_sql_frontend").Relational;
 const e = @import("RelationalExecution.zig");
 const Output = @import("RelationalOutput.zig");
-const values = @import("RelationalValues.zig");
+const values = @import("transit_sql_frontend").RelationalValues;
 const native = @import("transit_protocol").Growth;
 const Self = @This();
 pub const fixed_bytes = 4 + 32 + 1 + 32 + 32 + 8 + 8 + 2 * Output.fixed_bytes;

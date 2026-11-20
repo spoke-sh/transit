@@ -121,12 +121,12 @@ test "NULL comparisons preserve all vector lane states without accessing values"
     const states = [_]f.Types.State{ .value, .null, .missing, .type_error, .conflict };
     const details: [states.len]k.Detail = @splat(.none);
     const view: k.View = .{ .flat = .{ .type = .int64, .data = .states_only, .states = &states, .details = &details } };
-    const operators = std.meta.tags(@import("Finite.zig").Comparison);
+    const operators = std.meta.tags(@import("transit_sql_frontend").Finite.Comparison);
     for (operators) |op| {
         const kernel = k.Atom.bindType(.{ .null_compare = .{ .column = 0, .op = op } }, .int64);
         var outcomes: [states.len]k.Outcome = undefined;
         kernel.run(kernel, view, 0, &outcomes);
-        for (outcomes[0..3]) |outcome| try e.expectEqual(@import("Finite.zig").Truth.unknown, outcome.truth);
+        for (outcomes[0..3]) |outcome| try e.expectEqual(@import("transit_sql_frontend").Finite.Truth.unknown, outcome.truth);
         try e.expect(outcomes[3] == .type_error);
         try e.expect(outcomes[4] == .conflict);
     }

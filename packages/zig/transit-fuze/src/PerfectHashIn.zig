@@ -3,8 +3,8 @@
 //! `@Vector(16, u8)` SIMD prefix/equality comparisons and explicit collation
 //! rules (`D5`, `P2`).
 const std = @import("std");
-const Collation = @import("Collation.zig");
-const Types = @import("Types.zig");
+const Collation = @import("transit_sql_frontend").Collation;
+const Types = @import("transit_sql_frontend").Types;
 const v = Types.Values;
 
 pub const definition = "transit.fuze.perfect-hash-in.v1.2026-10-30";

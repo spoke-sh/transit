@@ -8,8 +8,8 @@ projection: []const u8,
 output_names: [m.max_columns]?m.Name = @splat(null),
 limit: ?u64 = null,
 aggregate: Aggregate = .rows,
-pub const Aggregate = @import("Finite.zig").Aggregate;
-pub const Comparison = @import("Finite.zig").Comparison;
+pub const Aggregate = @import("transit_sql_frontend").Finite.Aggregate;
+pub const Comparison = @import("transit_sql_frontend").Finite.Comparison;
 pub const Atom = union(enum) {
     all,
     state: struct { column: u8, value: m.State },
@@ -46,7 +46,7 @@ pub const Atom = union(enum) {
             .compare => |comparison| blk: {
                 if (comparison.column >= row.cells.len) return error.UnknownColumn;
                 const cell = row.cells[comparison.column];
-                break :blk try @import("Finite.zig").compareTruth(comparison.op, cell, comparison.value, {}, struct {
+                break :blk try @import("transit_sql_frontend").Finite.compareTruth(comparison.op, cell, comparison.value, {}, struct {
                     fn order(_: void, left: m.Scalar, right: m.Scalar) !std.math.Order {
                         return left.order(right);
                     }

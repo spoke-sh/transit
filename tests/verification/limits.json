@@ -80,7 +80,7 @@
       "meaning": "Current nested Arrow execution/inspection workspace; failure cannot truncate a result."
     },
     {
-      "source": "packages/zig/transit-fuze/src/model.zig",
+      "source": "packages/zig/transit-sql-frontend/src/model.zig",
       "symbol": "max_cell_bytes",
       "expression": "220",
       "classification": "encoding",
@@ -199,7 +199,7 @@
       "meaning": "Current v1 fixed checkpoint encoding, including separate selected-row and value-count accumulators; maximum KV continuation remains within the unchanged 256-byte value."
     },
     {
-      "source": "packages/zig/transit-fuze/src/UnifiedCodec.zig",
+      "source": "packages/zig/transit-sql-frontend/src/Finite.zig",
       "symbol": "max_plan_bytes",
       "expression": "8192",
       "classification": "encoding",
@@ -220,21 +220,21 @@
       "meaning": "221 raw bytes per stored/result-message fragment after framing; fragments stage across bounded turns."
     },
     {
-      "source": "packages/zig/transit-fuze/src/Sql.zig",
+      "source": "packages/zig/transit-sql-frontend/src/Sql.zig",
       "symbol": "max_statement_bytes",
       "expression": "1024 * 1024",
       "classification": "operation",
       "meaning": "One SQL statement; no bound on source cardinality."
     },
     {
-      "source": "packages/zig/transit-fuze/src/Sql.zig",
+      "source": "packages/zig/transit-sql-frontend/src/Sql.zig",
       "symbol": "max_comment_depth",
       "expression": "16",
       "classification": "operation",
       "meaning": "Iterative SQL comment nesting; no recursive parser stack."
     },
     {
-      "source": "packages/zig/transit-fuze/src/Sql.zig",
+      "source": "packages/zig/transit-sql-frontend/src/Sql.zig",
       "symbol": "max_literal_bytes",
       "expression": "2 + 2 * m.max_cell_bytes",
       "classification": "working-set",
@@ -311,8 +311,8 @@
       "meaning": "Escaped JSON administrative request; compiler still enforces the smaller complete-program and command bounds."
     },
     {
-      "source": "packages/zig/transit-fuze/src/Unified.zig",
-      "symbol": "max_columns",
+      "source": "packages/zig/transit-sql-frontend/src/Finite.zig",
+      "symbol": "max_source_columns",
       "expression": "8",
       "classification": "encoding",
       "meaning": "Logical columns per current query page."
@@ -339,14 +339,14 @@
       "meaning": "General nested Arrow segment ceiling. Station Table delivery uses u16 lengths and admits aligned segments up to 65528 bytes."
     },
     {
-      "source": "packages/zig/transit-fuze/src/TableSchema.zig",
+      "source": "packages/zig/transit-sql-frontend/src/TableSchema.zig",
       "symbol": "max_columns",
       "expression": "128",
       "classification": "operation",
       "meaning": "At most 128 columns in one general Table schema; independent of total catalog objects and durable row cardinality."
     },
     {
-      "source": "packages/zig/transit-fuze/src/TableSchema.zig",
+      "source": "packages/zig/transit-sql-frontend/src/TableSchema.zig",
       "symbol": "max_bytes",
       "expression": "65536",
       "classification": "encoding",
@@ -512,11 +512,25 @@
       "expression": "4 * 1024 * 1024",
       "classification": "working-set",
       "meaning": "Default configurable bound for one retained segment group of encoded predicate decisions and simultaneous validation/dictionary scratch; separate from output decoding, encoded page buffers and total durable rows."
+    },
+    {
+      "source": "packages/zig/transit-fuze/src/UnifiedCodec.zig",
+      "symbol": "max_plan_bytes",
+      "expression": "@import(\"transit_sql_frontend\").Finite.max_plan_bytes",
+      "classification": "encoding",
+      "meaning": "Current canonical FZP1 plan ceiling. Atomic Station Table starts use the separate 512-byte FQP1 profile; other clients upload plans explicitly."
+    },
+    {
+      "source": "packages/zig/transit-fuze/src/Unified.zig",
+      "symbol": "max_columns",
+      "expression": "@import(\"transit_sql_frontend\").Finite.max_source_columns",
+      "classification": "encoding",
+      "meaning": "Logical columns per current query page."
     }
   ],
   "identities": [
     {
-      "source": "packages/zig/transit-fuze/src/model.zig",
+      "source": "packages/zig/transit-sql-frontend/src/model.zig",
       "anchor": "names: [2]Name",
       "meaning": "Two-column schema qualification; schema width is a per-operation budget, not a total row limit."
     },

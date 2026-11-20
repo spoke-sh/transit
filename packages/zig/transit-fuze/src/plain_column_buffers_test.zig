@@ -1,8 +1,8 @@
 const std = @import("std");
 const t = std.testing;
 const p = @import("PhysicalCodecs.zig");
-const s = @import("TableSchema.zig");
-const Types = @import("Types.zig");
+const s = @import("transit_sql_frontend").TableSchema;
+const Types = @import("transit_sql_frontend").Types;
 const v = Types.Values;
 const a = @import("zarrow");
 

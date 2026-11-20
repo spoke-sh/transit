@@ -39,7 +39,7 @@
       "repertoire": "UTF-8 scalar code points",
       "normalized_key_order_preserving": true,
       "zone_map_pruning_sound": true,
-      "owner": "packages/zig/transit-fuze/src/Collation.zig",
+      "owner": "packages/zig/transit-sql-frontend/src/Collation.zig",
       "states": {
         "parse": "implemented",
         "lower": "implemented",
@@ -56,7 +56,7 @@
       "repertoire": "UTF-8 with ASCII A-Z folded to a-z; equal folded strings compare equal",
       "normalized_key_order_preserving": true,
       "zone_map_pruning_sound": true,
-      "owner": "packages/zig/transit-fuze/src/Collation.zig",
+      "owner": "packages/zig/transit-sql-frontend/src/Collation.zig",
       "states": {
         "parse": "implemented",
         "lower": "implemented",
@@ -73,7 +73,7 @@
       "repertoire": "IBM CP037 (US/Canada EBCDIC) single-byte repertoire",
       "normalized_key_order_preserving": true,
       "zone_map_pruning_sound": true,
-      "owner": "packages/zig/transit-fuze/src/Collation.zig",
+      "owner": "packages/zig/transit-sql-frontend/src/Collation.zig",
       "states": {
         "parse": "implemented",
         "lower": "implemented",
@@ -90,7 +90,7 @@
       "repertoire": "UTF-8 U+0000-U+00FF ordered by IBM CP037 with virtual U+0020 padding",
       "normalized_key_order_preserving": true,
       "zone_map_pruning_sound": true,
-      "owner": "packages/zig/transit-fuze/src/Collation.zig",
+      "owner": "packages/zig/transit-sql-frontend/src/Collation.zig",
       "states": {
         "parse": "implemented",
         "lower": "implemented",
@@ -107,7 +107,7 @@
       "repertoire": "UTF-8 U+0000-U+00FF ordered by IBM CP1047 without padding",
       "normalized_key_order_preserving": true,
       "zone_map_pruning_sound": true,
-      "owner": "packages/zig/transit-fuze/src/Collation.zig",
+      "owner": "packages/zig/transit-sql-frontend/src/Collation.zig",
       "states": {
         "parse": "implemented",
         "lower": "implemented",
@@ -124,7 +124,7 @@
       "repertoire": "Unicode Standard v15.1 Default Unicode Collation Element Table (CLDR root)",
       "normalized_key_order_preserving": false,
       "zone_map_pruning_sound": false,
-      "owner": "packages/zig/transit-fuze/src/Collation.zig",
+      "owner": "packages/zig/transit-sql-frontend/src/Collation.zig",
       "states": {
         "parse": "rejected",
         "lower": "rejected",
@@ -356,7 +356,7 @@
       "standard": "iso_sql_2023_foundation",
       "edition_clause": "ISO/IEC 9075-2:2023 §4.2-4.6",
       "title": "Core scalar types, exact numeric DECIMAL, and character collations",
-      "owner": "packages/zig/transit-fuze/src/Types.zig",
+      "owner": "packages/zig/transit-sql-frontend/src/Types.zig",
       "dependencies": [
         "UCS_BASIC"
       ],
@@ -390,7 +390,7 @@
       "standard": "iso_sql_2023_foundation",
       "edition_clause": "ISO/IEC 9075-2:2023 §11.3-11.36",
       "title": "Basic schema manipulation: CREATE TABLE, ALTER TABLE, DROP TABLE",
-      "owner": "packages/zig/transit-fuze/src/TableDdl.zig",
+      "owner": "packages/zig/transit-sql-frontend/src/TableDdl.zig",
       "dependencies": [
         "E021-E051"
       ],
@@ -418,7 +418,7 @@
       "standard": "iso_sql_2023_foundation",
       "edition_clause": "ISO/IEC 9075-2:2023 §11.6-11.9",
       "title": "Constraint management: deterministic row-level CHECK constraints",
-      "owner": "packages/zig/transit-fuze/src/TableConstraints.zig",
+      "owner": "packages/zig/transit-sql-frontend/src/TableConstraints.zig",
       "dependencies": [
         "F031-F034"
       ],
@@ -447,7 +447,7 @@
       "standard": "iso_sql_2023_foundation",
       "edition_clause": "ISO/IEC 9075-2:2023 §11.8",
       "title": "Declarative referential integrity: FOREIGN KEY ... REFERENCES with RESTRICT, NO ACTION, CASCADE, SET NULL",
-      "owner": "packages/zig/transit-fuze/src/TableConstraints.zig",
+      "owner": "packages/zig/transit-sql-frontend/src/TableConstraints.zig",
       "dependencies": [
         "F031-F034"
       ],
@@ -537,7 +537,7 @@
       "standard": "transit_extension_v1",
       "edition_clause": "FUZE_TYPES_V1 §RANGE",
       "title": "Canonical RANGE<T> and MULTIRANGE<T> intervals with Allen interval predicates (&&, @>, <@, -|-)",
-      "owner": "packages/zig/transit-fuze/src/Range.zig",
+      "owner": "packages/zig/transit-sql-frontend/src/Range.zig",
       "dependencies": [
         "E021-E051"
       ],
@@ -566,7 +566,7 @@
       "standard": "transit_extension_v1",
       "edition_clause": "FUZE_TYPES_V1 §VECTOR",
       "title": "Unboxed dense numeric vectors VECTOR(dim, elem_type) and distance metrics (L2_SQUARED, COSINE, DOT_PRODUCT, HAMMING)",
-      "owner": "packages/zig/transit-fuze/src/VectorMetric.zig",
+      "owner": "packages/zig/transit-sql-frontend/src/VectorMetric.zig",
       "dependencies": [
         "E021-E051"
       ],
@@ -654,7 +654,7 @@
       "standard": "transit_extension_v1",
       "edition_clause": "TRANSIT_SQL_V1 §EXPLAIN",
       "title": "Zero-work EXPLAIN with operator read/mutate/capture/dispatch effects, 5-state rules, and work bounds",
-      "owner": "packages/zig/transit-fuze/src/OperatorTraits.zig",
+      "owner": "packages/zig/transit-sql-frontend/src/OperatorTraits.zig",
       "dependencies": [
         "E021-E051"
       ],
@@ -1106,7 +1106,7 @@
       ]
     }
   ],
-  "sha256": "f251d6b03e73555339c6c6353a675c771555efd8decf1c7a44021761c774402b",
+  "sha256": "7825855c12422c729aa955989c2b54aec1ebf3905cb1f633bd9f93341d0fe34c",
   "scope": "States describe public runtime entry points, not helper availability or ISO conformance. Physical codecs describe typed TableSchema admission; ENCODING syntax remains reference-only. An implemented feature covers only the stated deviations and fixtures.",
   "compiler_cases": [
     {

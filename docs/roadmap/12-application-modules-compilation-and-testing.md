@@ -1,5 +1,13 @@
 # 12. Recursive `.transit` modules, SQL compilation, builds and testing
 
+Compiler ownership is now in [transitc](https://github.com/spoke-sh/transitc): source
+language, workspace resolution, build/test commands and their proof schedules.
+Transit is upstream of that repository. It supplies the shared SQL frontend,
+protocol types and [native compiled-case test contract](../../contracts/TEST_HOST_V1.md),
+with no compiler snapshot or reverse build dependency. Current usage is in the
+[application reference](../handbook/reference/applications.md).
+
+
 [Roadmap](README.md) · **Status:** In Progress
 
 The [completion implementation plan](application-modules-completion.md) updates
@@ -30,8 +38,8 @@ replace their qualification gates.
 Let an application compose data definitions, queries, dataflows, effect bindings
 and publications in a typed declarative application language stored as `.transit`,
 with SQL as its relational foundation and independently executable output.
-`build.transit` is a program in that same language: `transit build` and
-`transit test` recursively compose local and pinned repository modules, typecheck
+`build.transit` is a program in that same language: `transitc build` and
+`transitc test` recursively compose local and pinned repository modules, typecheck
 the program and lower it to executable `.sql`. Execute that output as ordinary
 statements or synthesize immutable migration SQL against an explicit prior state.
 Reuse typed modules, profiles, functions, guards and procedures. Make domain
@@ -40,10 +48,10 @@ invariants explicit, and preserve them through compilation, execution and
 recovery. Exercise the same generated SQL through deterministic local tests,
 selected TLA+ models, Lean proofs and implementation correspondence checks.
 
-The bounded recursive Table compiler and `transit build` landed in
+The bounded recursive Table compiler and `transitc build` landed in
 [PR #437](https://github.com/spoke-sh/transit/pull/437); the
 [current source contract](../../contracts/APPLICATION_SOURCE_V1.md) defines that
-implemented subset and the delivered isolated Table profile of `transit test`.
+implemented subset and the delivered isolated Table profile of `transitc test`.
 The broader source forms, clock/effect/replay controls and examples below remain
 proposed except where explicitly identified as delivered. The
 [public language model](../handbook/reference/applications.md#planned-source-language-and-build-model)
@@ -61,7 +69,7 @@ definition path. Current interface compiler behavior remains unchanged until tha
 cutover, and ordinary serving does not depend on completing this entire toolchain.
 
 **Grammar baseline:** the source compiler now has a dedicated
-[ANTLR reference and correspondence corpus](../../contracts/application-source/README.md)
+[ANTLR reference and correspondence corpus](https://github.com/spoke-sh/transitc/blob/main/contracts/application-source/README.md)
 for `.transit` modules, builds and tests, alongside its Zig parser. The existing
 [SQL grammar](../../contracts/sql/TransitExtensions.g4) and
 [application interface grammar](../../contracts/application/Application.g4)
@@ -117,7 +125,7 @@ current toolchain and language surface:
 | **1. Chronological migration files vs. logical source tree** | [`MIGRATION_V1.md`](../../contracts/MIGRATION_V1.md) and [`DirectMigration.zig`](../../packages/zig/transit-catalog/src/DirectMigration.zig) (`TMD1`/`TMV1`) enforce byte-for-byte immutability (`source_sha256`) on applied `<version>-<name>.sql` files and cap each version at `max_steps = 64`. `networking` is already split across `0004-networks.sql` (385 lines) and `0007-https-endpoints.sql` (825 lines), while `0005-transit-instances.sql` spans 1,047 lines. | Once `0001`–`0007` are applied, changing a single guard or parameter in a 70-line dataflow (`deployments.replace_instance`) requires appending a `0008-*.sql` patch file. Understanding current domain behavior requires mentally replaying the chronological migration log instead of reading a logical module tree. |
 | **2. Flat schema namespaces without module encapsulation** | `CREATE SCHEMA` in [`DirectNamespace.zig`](../../packages/zig/transit-catalog/src/DirectNamespace.zig) provides a flat naming prefix and coarse `GRANT USAGE` boundary with no `PUBLIC` vs. `PRIVATE` object visibility or explicit cross-module interface contract. Within a single file, storage schemas, command handlers, background workflows, `AUTHORIZE`/`ACTIVATE` wiring, `PUBLICATION`s and HTTP `SOURCE`s are interleaved in topological order. | External schemas directly mutate or query another module's internal storage tables (for example, `deployments.register_instance` and `deployments.purge_retained_storage` directly executing `INSERT` and `UPDATE` on `networking.attachments`, and `publication.publish_bundle` querying `networking.target_holds` internal columns), coupling physical table schemas across domain boundaries. |
 | **3. Repetitive ceremony and missing compile-time abstractions** | Every command repeats a 17-line `CREATE SOURCE ..._http FROM HTTP REQUEST` block with identical `request_profile`, `authentication`, `origin`, `request_id_header`, `max_body_bytes` and `request_timeout` options plus paired `AUTHORIZE`/`ACTIVATE` statements (~450 lines of duplicate route boilerplate across 26 commands). Every `CREATE PUBLICATION` repeats the same 12-line `WITH (...)` block (~200 lines across 16 catalogs). Dataflows repeat identical revision/authority `REQUIRE` checks, `DIGEST` $\to$ `NATIVE_AUTHORIZES` $\to$ `ACCEPT OPERATION` $\to$ `ENQUEUE` sequences, and `GUARD EXISTS (SELECT 1 FROM ..._current_operations WHERE id = operation.id)` clauses. | High-signal domain invariants and state transitions are buried under hundreds of lines of copy-pasted wiring; updating a shared security header, timeout, or operation-acceptance invariant requires error-prone edits across dozens of declarations. |
-| **4. Statement-level scanner limits and late runtime planning** | [`MigrationClient.loadSourceFile`](../../packages/zig/transit-sql-client/src/MigrationClient.zig) validates whole migration files against `Sql.validateText`'s 4,096-byte single-statement ceiling (`StatementTooLarge` on the 19.5 KiB `0001-auth.sql`). [`MigrationRunner.splitStatements`](../../packages/zig/transit-sql-service/src/MigrationRunner.zig) splits on `;` whenever parenthesis `depth == 0`, breaking on semicolons inside `CREATE DATAFLOW ... AS BEGIN ... END;` compound bodies. Semantic validation happens only when planning against a live catalog. | Authors cannot run a fast, offline whole-program compiler (`transit build` with check-only compilation) that resolves cross-schema imports, typechecks `LET` bindings and `ROW(...)` fields, verifies `CAPABILITY` response/handoff completeness, and prevents `SECRET` taint leaks before starting a server or container. |
+| **4. Statement-level scanner limits and late runtime planning** | [`MigrationClient.loadSourceFile`](../../packages/zig/transit-sql-client/src/MigrationClient.zig) validates whole migration files against `Sql.validateText`'s 4,096-byte single-statement ceiling (`StatementTooLarge` on the 19.5 KiB `0001-auth.sql`). [`MigrationRunner.splitStatements`](../../packages/zig/transit-sql-service/src/MigrationRunner.zig) splits on `;` whenever parenthesis `depth == 0`, breaking on semicolons inside `CREATE DATAFLOW ... AS BEGIN ... END;` compound bodies. Semantic validation happens only when planning against a live catalog. | Authors cannot run a fast, offline whole-program compiler (`transitc build` with check-only compilation) that resolves cross-schema imports, typechecks `LET` bindings and `ROW(...)` fields, verifies `CAPABILITY` response/handoff completeness, and prevents `SECRET` taint leaks before starting a server or container. |
 | **5. No unit-test harness or deterministic effect/clock simulator** | Testing a command (`deployments.prepare_candidate`) or multi-step workflow (`auth.complete_github_signin`, `networking.issue_certificate`) currently requires standing up a live process or container harness and exercising full wire/provider paths. | Developers cannot unit-test individual dataflows in milliseconds with deterministic clocks (`ADVANCE CLOCK`), stubbed `SINK` outcomes and `AWAIT OBSERVATION` replies, or automated crash/replay fault injection across `BEGIN ATOMIC` and effect yield points. |
 
 ## Architectural decisions (`D1`–`D6`)
@@ -134,7 +142,7 @@ current toolchain and language surface:
   SQL with typed imports, modules, constructors and compile-time evaluation.
   `build.transit` uses those same constructs to export target compositions,
   output declarations and tests. A child build module can build independently
-  or be imported by its parent. `transit build` and `transit test` resolve one
+  or be imported by its parent. `transitc build` and `transitc test` resolve one
   graph; nested projects do not require recursive shell invocations or a second
   manifest language that independently defines module semantics.
 - **SQL is the executable output:** Canonical `.sql` contains the complete
@@ -294,7 +302,7 @@ executable SQL:
    `EXECUTE SINK` and `AWAIT OBSERVATION` remain top-level `DATAFLOW` steps and
    are forbidden inside inline `PROCEDURE` bodies.
 
-### `D4` — Shared compiler, bounded evaluation and canonical SQL emission (`transit build`)
+### `D4` — Shared compiler, bounded evaluation and canonical SQL emission (`transitc build`)
 
 - **Independent source grammar:** Maintain a dedicated ANTLR source root beside
   the source contract, using the pinned grammar tools. Distinguish source/build,
@@ -304,7 +312,7 @@ executable SQL:
   Zig parser, including embedded SQL operands, precedence, block boundaries and
   diagnostics. ANTLR remains a verification dependency, not a runtime parser.
 - **Block-aware lexical splitting and application-sized file bounds:**
-  Upgrade [`SqlInput.zig`](../../packages/zig/transit-fuze/src/SqlInput.zig) and
+  Upgrade [`SqlInput.zig`](../../packages/zig/transit-sql-frontend/src/SqlInput.zig) and
   [`MigrationRunner.splitStatements`](../../packages/zig/transit-sql-service/src/MigrationRunner.zig)
   to track compound lexical block depth across `BEGIN [ATOMIC] ... [ON FAILURE ...] END`,
   `CASE ... END [CASE]`, `IF ... THEN ... [ELSIF ...] [ELSE ...] END IF`, and
@@ -315,7 +323,7 @@ executable SQL:
   while qualifying the proposed 256 steps per migration version with bounded
   scratch memory; current migration execution permits 64 steps.
 - **Offline whole-program semantic validation and linear capability checking:**
-  Provide `transit build` and a check-only mode over `build.transit`, backed by
+  Provide `transitc build` and a check-only mode over `build.transit`, backed by
   shared Zig compiler components using
   [`transit-fuze`](../../packages/zig/transit-fuze/src/root.zig) and the Catalog
   type/definition owners. Keep the database compiler independent of Station;
@@ -396,12 +404,12 @@ executable SQL:
     policy. In-flight work is never silently reinterpreted under a mutated
     workflow AST.
 
-### `D6` — Deterministic offline unit testing, effect/clock simulation and yield-point fault injection (`transit test`)
+### `D6` — Deterministic offline unit testing, effect/clock simulation and yield-point fault injection (`transitc test`)
 
 - **Container-free declarative test runner (`*.test.transit`):**
   Let developers write fast, hermetic unit and property tests alongside each
   module (`modules/auth/auth.test.transit`, `modules/deployments/instances.test.transit`).
-  `transit test` reads the same `build.transit`, resolves the same locked module
+  `transitc test` reads the same `build.transit`, resolves the same locked module
   graph and lowers test bodies through the production SQL emitter. Execute the
   generated SQL over an isolated, zero-network `DatabaseRuntime` + `DirectCatalog`
   instance. Runner-owned assertions, clocks, mocks and schedules remain test-only
@@ -446,7 +454,7 @@ executable SQL:
   and advancing virtual time (`ADVANCE TEST CLOCK BY INTERVAL '10 minutes';`) to
   test challenge expiry, lease timeouts, and `ON FAILURE` preservation paths.
 - **Automated yield-point crash/replay verifier:**
-  `transit test --verify-replay` automatically snapshots the in-memory catalog
+  `transitc test --verify-replay` automatically snapshots the in-memory catalog
   and partition state at every `EXECUTE SINK`, `AWAIT OBSERVATION` and
   `BEGIN ATOMIC` boundary in a tested workflow, simulates worker interruption or
   lost response, and re-runs the workflow under `ON REPLAY OBSERVE ONLY` to
@@ -480,8 +488,8 @@ executable SQL:
 The [first-slice implementation plan](application-build-implementation.md)
 reconciles this sequence with the merged application foundation and scopes
 the first recursive module build through independently executable SQL. The
-bounded Table compiler is implemented in `transit-compiler` and exposed through
-`transit build`; [its public contract](../../contracts/APPLICATION_SOURCE_V1.md)
+bounded Table compiler is implemented in `transitc-compiler` and exposed through
+`transitc build`; [its public contract](../../contracts/APPLICATION_SOURCE_V1.md)
 keeps unsupported runtime capabilities explicit. Qualification and remaining work
 are tracked by the implementation plan. It scopes
 the initial runtime subset, package/compiler owners, logical commits and caller
@@ -534,11 +542,11 @@ contract and checked grammar agree.
 
 ### `P0` — Source/build contracts, compilation stages and block-aware scanning
 
-**Owners:** [`contracts/MIGRATION_V1.md`](../../contracts/MIGRATION_V1.md), [`packages/zig/transit-fuze/src/SqlInput.zig`](../../packages/zig/transit-fuze/src/SqlInput.zig), [`packages/zig/transit-sql-service/src/MigrationRunner.zig`](../../packages/zig/transit-sql-service/src/MigrationRunner.zig), [`packages/zig/transit-sql-client/src/MigrationClient.zig`](../../packages/zig/transit-sql-client/src/MigrationClient.zig), [`packages/zig/transit-catalog/src/DirectMigration.zig`](../../packages/zig/transit-catalog/src/DirectMigration.zig).
+**Owners:** [`contracts/MIGRATION_V1.md`](../../contracts/MIGRATION_V1.md), [`packages/zig/transit-sql-frontend/src/SqlInput.zig`](../../packages/zig/transit-sql-frontend/src/SqlInput.zig), [`packages/zig/transit-sql-service/src/MigrationRunner.zig`](../../packages/zig/transit-sql-service/src/MigrationRunner.zig), [`packages/zig/transit-sql-client/src/MigrationClient.zig`](../../packages/zig/transit-sql-client/src/MigrationClient.zig), [`packages/zig/transit-catalog/src/DirectMigration.zig`](../../packages/zig/transit-catalog/src/DirectMigration.zig).
 
 Source syntax and the typed core belong to
 [`APPLICATION_SOURCE_V1`](../../contracts/APPLICATION_SOURCE_V1.md) and
-[`transit-compiler`](../../packages/zig/transit-compiler/README.md). Reuse the
+[`transitc-compiler`](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-compiler/README.md). Reuse the
 [pinned grammar/proof tools](../../contracts/sql/README.md) and the
 [model correspondence harness](../../tests/verification/models/README.md).
 
@@ -573,7 +581,7 @@ Source syntax and the typed core belong to
      space. Define deterministic declaration ordering independent of filesystem
      enumeration, and reject output that exceeds the target's statement limits.
 4. **Formalize the source grammar and continuously compare parsers:**
-   - Add `contracts/application-source/TransitSource.g4` with an owning README
+   - Add `transitc/contracts/application-source/TransitSource.g4` with an owning README
      and independent positive/negative corpus. This is a planned path, distinct
      from `contracts/application/Application.g4`. First cover every delivered
      import, dependency, interface, module, target, typed operand, expression,
@@ -609,7 +617,7 @@ Source syntax and the typed core belong to
 
 ### `P1` — Recursive module resolution, package locks and encapsulation
 
-**Owners:** [`contracts/DECLARATIVE_CATALOG_V1.md`](../../contracts/DECLARATIVE_CATALOG_V1.md), [`packages/zig/transit-catalog/src/DirectNamespace.zig`](../../packages/zig/transit-catalog/src/DirectNamespace.zig), [`packages/zig/transit-catalog/src/DirectCatalogDependencies.zig`](../../packages/zig/transit-catalog/src/DirectCatalogDependencies.zig), [`packages/zig/transit-fuze/src/SqlBinding.zig`](../../packages/zig/transit-fuze/src/SqlBinding.zig).
+**Owners:** [`contracts/DECLARATIVE_CATALOG_V1.md`](../../contracts/DECLARATIVE_CATALOG_V1.md), [`packages/zig/transit-catalog/src/DirectNamespace.zig`](../../packages/zig/transit-catalog/src/DirectNamespace.zig), [`packages/zig/transit-catalog/src/DirectCatalogDependencies.zig`](../../packages/zig/transit-catalog/src/DirectCatalogDependencies.zig), [`packages/zig/transit-sql-frontend/src/SqlBinding.zig`](../../packages/zig/transit-sql-frontend/src/SqlBinding.zig).
 
 1. **Resolve local and repository modules through one typed graph:**
    - Implement child build imports, module-valued parameters/exports, package
@@ -635,7 +643,7 @@ Source syntax and the typed core belong to
 
 ### `P2` — Compile-time `PROFILE`, `FUNCTION`, `GUARD` and inline `PROCEDURE` lowering
 
-**Owners:** [`contracts/sql/TransitExtensions.g4`](../../contracts/sql/TransitExtensions.g4), [`packages/zig/transit-fuze/src/SqlLowering.zig`](../../packages/zig/transit-fuze/src/SqlLowering.zig), [`packages/zig/transit-fuze/src/ScalarProgram.zig`](../../packages/zig/transit-fuze/src/ScalarProgram.zig), [`packages/zig/transit-catalog/src/DeclarativeIngress.zig`](../../packages/zig/transit-catalog/src/DeclarativeIngress.zig).
+**Owners:** [`contracts/sql/TransitExtensions.g4`](../../contracts/sql/TransitExtensions.g4), [`packages/zig/transit-fuze/src/SqlLowering.zig`](../../packages/zig/transit-fuze/src/SqlLowering.zig), [`packages/zig/transit-sql-frontend/src/ScalarProgram.zig`](../../packages/zig/transit-sql-frontend/src/ScalarProgram.zig), [`packages/zig/transit-catalog/src/DeclarativeIngress.zig`](../../packages/zig/transit-catalog/src/DeclarativeIngress.zig).
 
 1. **Implement `CREATE PROFILE ... FOR SOURCE | SINK | PUBLICATION` and `USING PROFILE`:**
    - Parse and validate typed option profiles, resolve `USING PROFILE <name>`
@@ -671,12 +679,12 @@ Source syntax and the typed core belong to
      Record correspondence assumptions; a proof about an abstract expander alone
      does not certify the production compiler.
 
-### `P3` — Whole-program checking, SQL emission and `transit build`
+### `P3` — Whole-program checking, SQL emission and `transitc build`
 
-**Owners:** [`packages/zig/transit-fuze/src/SqlCheck.zig`](../../packages/zig/transit-fuze/src/SqlCheck.zig), [`packages/zig/transit-catalog/`](../../packages/zig/transit-catalog), [`apps/transit-cli/`](../../apps/transit-cli). Source I/O and resolution belong to tooling; shared compiler semantics remain independent of Station.
+**Owners:** [`packages/zig/transit-sql-frontend/src/SqlCheck.zig`](../../packages/zig/transit-sql-frontend/src/SqlCheck.zig), [`packages/zig/transit-catalog/`](../../packages/zig/transit-catalog), [`apps/transit-cli/`](../../apps/transit-cli). Source I/O and resolution belong to tooling; shared compiler semantics remain independent of Station.
 
 1. **Build the multi-file working catalog and symbol table:**
-   - Extend `transit-compiler`'s in-memory `WorkingCatalog`, using shared Fuze and
+   - Extend `transitc-compiler`'s in-memory `WorkingCatalog`, using shared Fuze and
      Catalog type/definition owners, to ingest an
      ordered module graph or migration sequence, resolving all schemas, storage
      types, views, functions, guards, procedures, profiles, connections, sinks,
@@ -711,7 +719,7 @@ Source syntax and the typed core belong to
    - Statically reject any module or migration that activates an inbound
      `SOURCE` before its target `COMMAND` dataflow or queue-consuming
      `DATAFLOW`s and their required `SINK`s are authorized and activated.
-5. **Expose `transit build` over `build.transit`:**
+5. **Expose `transitc build` over `build.transit`:**
    - Support default/named targets, check-only compilation and structured
      [`DIAGNOSTICS_V1.md`](../../contracts/DIAGNOSTICS_V1.md) envelopes (file,
      line, column, module instance, definition/call site, rule and rewrite hint).
@@ -725,9 +733,9 @@ Source syntax and the typed core belong to
 
 ### `P4` — Desired-state-to-migration synthesizer, schema/definition diffing and `CREATE OR REPLACE` lifecycle
 
-**Owners:** [`packages/zig/transit-compiler/src/CatalogDiff.zig`](../../packages/zig/transit-compiler/src/CatalogDiff.zig), [`apps/transit-cli/BuildMigration.zig`](../../apps/transit-cli/BuildMigration.zig), [`contracts/MIGRATION_V1.md`](../../contracts/MIGRATION_V1.md), [`packages/zig/transit-catalog/src/DirectMigration.zig`](../../packages/zig/transit-catalog/src/DirectMigration.zig), [`packages/zig/transit-catalog/src/DirectDefinition.zig`](../../packages/zig/transit-catalog/src/DirectDefinition.zig), [`packages/zig/transit-sql-service/src/MigrationRunner.zig`](../../packages/zig/transit-sql-service/src/MigrationRunner.zig).
+**Owners:** [`transitc/packages/transitc-compiler/src/CatalogDiff.zig`](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-compiler/src/CatalogDiff.zig), [`transitc/packages/transitc-workspace/src/BuildMigration.zig`](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-workspace/src/BuildMigration.zig), [`contracts/MIGRATION_V1.md`](../../contracts/MIGRATION_V1.md), [`packages/zig/transit-catalog/src/DirectMigration.zig`](../../packages/zig/transit-catalog/src/DirectMigration.zig), [`packages/zig/transit-catalog/src/DirectDefinition.zig`](../../packages/zig/transit-catalog/src/DirectDefinition.zig), [`packages/zig/transit-sql-service/src/MigrationRunner.zig`](../../packages/zig/transit-sql-service/src/MigrationRunner.zig).
 
-The delivered [Table migration profile](../../contracts/APPLICATION_SOURCE_V1.md#table-migration-targets)
+The delivered [Table migration profile](https://github.com/spoke-sh/transitc/blob/main/contracts/APPLICATION_SOURCE_V1.md#table-migration-targets)
 implements unchanged/new Tables and safe trailing `ADD COLUMN` changes against
 an explicit offline basis. `CREATE MIGRATION TARGET` publishes complete desired
 SQL, a successor basis, provenance and verified immutable SQL history. The
@@ -764,7 +772,7 @@ replacement policies remain required to complete P4.
        ([Milestone 11](11-indexing-and-access-paths.md)) in the new migration file.
 3. **Compose migration synthesis and verification as build targets:**
    - `build.transit` declares the desired composition, prior basis, transforms
-     and migration output. `transit build` emits reviewable `<version>-<name>.sql`
+     and migration output. `transitc build` emits reviewable `<version>-<name>.sql`
      without applying it or rewriting previously recorded files.
    - Include nominal/variant representations, constraints, effects and transition
      contracts in the diff. Reject ambiguous state conversions; invalidate affected
@@ -778,9 +786,9 @@ replacement policies remain required to complete P4.
 
 ### `P5` — Deterministic SQL unit-test runner, sink/observation simulator and yield-point fault injector
 
-**Owners:** [`packages/zig/transit-compiler/`](../../packages/zig/transit-compiler), [`packages/zig/transit-test/`](../../packages/zig/transit-test), [`packages/zig/transit-sql-service/`](../../packages/zig/transit-sql-service), [`apps/transit-cli/`](../../apps/transit-cli).
+**Owners:** [`transitc/packages/transitc-compiler/`](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-compiler), [`packages/zig/transit-test/`](../../packages/zig/transit-test), [`packages/zig/transit-sql-service/`](../../packages/zig/transit-sql-service), [`apps/transit-cli/`](../../apps/transit-cli).
 
-The [isolated Table profile](../../contracts/APPLICATION_SOURCE_V1.md#isolated-table-tests)
+The [isolated Table profile](https://github.com/spoke-sh/transitc/blob/main/contracts/APPLICATION_SOURCE_V1.md#isolated-table-tests)
 delivers item 1 for the existing compiler subset and typed row/count/refusal
 assertions from item 3. The controls, broader SQL and replay schedules below
 remain required to complete P5.
@@ -871,12 +879,12 @@ remain required to complete P5.
 | Milestone | Shared boundary | Handoff and non-duplication rule |
 | --- | --- | --- |
 | [M1](01-declarative-data-lifecycle.md)–[M5](05-transactions-and-atomic-composition.md) | `CatalogId`/`DefinitionId`/`ColumnId` identities, `.tseg` storage, `DirectCatalog`, `DirectMigration` (`TMD1`/`TMV1`) and serializable multi-Table transactions | M12 reuses `DirectCatalog`, `DirectMigration` and M5's transaction commit envelope; inline `PROCEDURE`s lower into the caller's M5/M6 atomic transaction without creating a second transaction coordinator or migration ledger. |
-| [M6](06-streams-queues-and-durable-runtime.md) & [M7](07-document-storage-and-station-decoupling.md) | `STREAM`, `QUEUE` and `DOCUMENT` catalog primitives and mixed transactions | M12's module compiler, `CREATE OR REPLACE` lifecycle and `transit test` harness consume M6/M7's direct `StreamPartition`, `QueuePartition` and `DocumentPartition` owners directly. |
+| [M6](06-streams-queues-and-durable-runtime.md) & [M7](07-document-storage-and-station-decoupling.md) | `STREAM`, `QUEUE` and `DOCUMENT` catalog primitives and mixed transactions | M12's module compiler, `CREATE OR REPLACE` lifecycle and `transitc test` harness consume M6/M7's direct `StreamPartition`, `QueuePartition` and `DocumentPartition` owners directly. |
 | [M8](08-gateway-architecture-and-protocol-ingress.md) & [M9](09-client-foundation-and-language-apis.md) | Co-hosted direct-plane HTTP/SQL ingress, command deadlines and `MigrationClient` | M12's `SOURCE` profiles and `MigrationClient` file-bound increases plug directly into M8's co-hosted command ingress and M9's shared SQL client. |
 | [M10](10-standards-and-catalogs.md) & [M11](11-indexing-and-access-paths.md) | `DirectDefinition` (`TCDESC01`), `CHECK`/`FOREIGN KEY` dependency graph, lazy schema projection and online phased rewrites | M12's migration synthesizer uses M10's `logicalFingerprint` and lazy-projection rules to classify additive vs. rewrite DDL, and delegates physical table rewrites to M11's online rewrite lifecycle. |
 | [M13](13-declarative-serving-and-reactive-dataflows.md) | Station-independent typed operations, publication, subscriptions and transport bindings | M12 emits ordinary executable declarations and tests their source composition as M13 qualifies each owner. Basic publication does not wait for M29/M30; M13 owns retirement of the interface/UI compiler after consumer migration. |
 | [M14](14-sql-and-dataflows.md) | Managed computations, WAL-activated DBSP dataflows and 5-state lifecycle (`ACTIVATE`, `SUSPEND`, `RESUME`, `REFRESH`, `RETIRE`) | M12 owns recursive `.transit` source composition and SQL emission, static type/capability/secret checking, compile-time `PROFILE`/`GUARD`/`PROCEDURE` lowering, `CREATE OR REPLACE` revision migration and offline unit testing; M14 owns runtime WAL-driven incremental dataflow execution, analytical SQL operators and bitemporal `AS OF JOIN`. |
-| [M17](17-data-centric-compilation-and-specialization.md) | Shared build graph, executable SQL and AOT targets | M12 owns recursive `.transit` composition and canonical `.sql` emission; M17 extends `transit build` with optional specialization/AOT outputs from the same bound SQL semantics, without a separate module system or runtime authority. |
+| [M17](17-data-centric-compilation-and-specialization.md) | Shared build graph, executable SQL and AOT targets | M12 owns recursive `.transit` composition and canonical `.sql` emission; M17 extends `transitc build` with optional specialization/AOT outputs from the same bound SQL semantics, without a separate module system or runtime authority. |
 | [M22](22-branches-merges-and-restore.md) & [M31](31-reviewed-data-collaboration.md) | Catalog/schema diffing (`DIFF_SCHEMA`) and reviewed branch proposals | M12's offline module-to-migration synthesizer shares the canonical schema/definition diff representation extended across branches and remotes in M22 and M31. |
 | [M24](24-formal-semantics-and-correspondence.md) | Temporal models, Lean semantics and implementation correspondence | M12 delivers the language-specific models, selected lowering/transition theorems and native trace checks with each admitted construct. M24 extends systematic coverage and composition; it is not a reason to defer these language correctness gates. Reuse the existing model harness, invariant inventory and proof ledger. |
 | [M29](29-control-and-policy-plane.md) & [M30](30-published-resources-and-investigations.md) | Declarative `SECRET` catalog, OAuth2/PKCE flows and `PUBLICATION` disclosure policies | M12 enforces static `SECRET` taint analysis and compiles `CREATE PROFILE ... FOR PUBLICATION` templates consumed by M29 and M30. |
@@ -903,4 +911,4 @@ result. Record performance against the pinned conditions in `P6`.
 | **Execute generated SQL independently (`P2`, `P3`)** | Reparse emitted `.sql` and compare canonical definitions/plans and ordered outcomes with hand-expanded equivalents. Ordinary clients execute it with source packages absent; unsupported runtime constructs reject at build time. Revocation after compilation, atomicity, stable bindings and runtime encapsulation remain enforced. |
 | **Synthesize and verify migration outputs (`P4`)** | A build target with an explicit prior basis emits ordered SQL for additive and supported definition changes. Replay matches desired logical fingerprints/digests; ambiguous or destructive transitions require explicit transforms. Dependency upgrades do not apply themselves. Recorded migration bytes and original outcomes survive source/compiler changes and lost replies. |
 | **Replace running definitions safely (`P4`, `D5`)** | Applying replacement while queue leases and operations are in flight preserves their prior definition basis or drains/fences under the selected policy. Restart and uncertain replies never reinterpret accepted work. |
-| **Run tests through the production emitter (`P5`)** | `transit test` reads the same graph and executes SQL generated from `*.test.transit`. Clock/effect controls remain runner-only. Replay sweeps preserve reservations, observe-only recovery and known terminal outcomes; unresolved external outcomes remain explicit. Real provider/durability qualification remains separate. |
+| **Run tests through the production emitter (`P5`)** | `transitc test` reads the same graph and executes SQL generated from `*.test.transit`. Clock/effect controls remain runner-only. Replay sweeps preserve reservations, observe-only recovery and known terminal outcomes; unresolved external outcomes remain explicit. Real provider/durability qualification remains separate. |

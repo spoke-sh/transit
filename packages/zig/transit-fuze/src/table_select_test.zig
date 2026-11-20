@@ -1,10 +1,10 @@
 const std = @import("std");
 const e = std.testing;
-const select = @import("TableSelect.zig");
+const select = @import("transit_sql_frontend").TableSelect;
 const logical = @import("LogicalQuery.zig");
-const types = @import("Types.zig");
-const ddl = @import("TableDdl.zig");
-const dml = @import("TableDml.zig");
+const types = @import("transit_sql_frontend").Types;
+const ddl = @import("transit_sql_frontend").TableDdl;
+const dml = @import("transit_sql_frontend").TableDml;
 const Cell = types.Values.Cell;
 const basis: [32]u8 = @splat(17);
 
@@ -33,14 +33,14 @@ test "Table SELECT qualified wildcard preserves the full logical schema" {
         "SELECT items.* FROM items i",
         "SELECT i.* FROM items AS \"I\"",
     }) |text| {
-        var location: @import("Sql.zig").Location = .{};
+        var location: @import("transit_sql_frontend").Sql.Location = .{};
         try e.expectError(error.UnknownQualifier, select.compile(e.allocator, text, "items", schema, basis, &location));
         try e.expectEqual(@as(usize, 7), location.offset);
     }
 }
 
 test "typed SELECT and DML bound Boolean instruction and operator stacks independently" {
-    const schema: @import("TableSchema.zig").Schema = .{ .object = 1, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "n", .type = .int64 }}, .primary_key = &.{} };
+    const schema: @import("transit_sql_frontend").TableSchema.Schema = .{ .object = 1, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "n", .type = .int64 }}, .primary_key = &.{} };
     var fields: [128]types.Field = undefined;
     const row_type = try schema.rowType(&fields);
     for ([_]struct { negations: usize, groups: usize, failure: ?anyerror = null }{
@@ -78,7 +78,7 @@ test "typed SELECT and DML bound Boolean instruction and operator stacks indepen
 }
 
 test "Table SELECT and DML share all canonical five-state predicates" {
-    const schema: @import("TableSchema.zig").Schema = .{ .object = 1, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "n", .type = .int64 }}, .primary_key = &.{} };
+    const schema: @import("transit_sql_frontend").TableSchema.Schema = .{ .object = 1, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "n", .type = .int64 }}, .primary_key = &.{} };
     var fields: [128]types.Field = undefined;
     const row_type = try schema.rowType(&fields);
     const values = [_]Cell{ .{ .value = .{ .atom = .{ .signed = 1 } } }, .null };
@@ -120,7 +120,7 @@ test "SELECT binding retains original projection and predicate coordinates" {
         .{ "SELECT SUM(q.absent) FROM (SELECT n FROM people) AS q", error.UnknownColumn, "absent" },
     };
     inline for (cases) |case| {
-        var location: @import("Sql.zig").Location = .{};
+        var location: @import("transit_sql_frontend").Sql.Location = .{};
         try e.expectError(case[1], select.compile(e.allocator, case[0], "people", schema, basis, &location));
         try e.expectEqual(std.mem.indexOf(u8, case[0], case[2]).?, location.offset);
     }

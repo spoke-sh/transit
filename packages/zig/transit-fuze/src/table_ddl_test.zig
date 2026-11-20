@@ -1,7 +1,7 @@
 const std = @import("std");
 const e = std.testing;
-const ddl = @import("TableDdl.zig");
-const s = @import("TableSchema.zig");
+const ddl = @import("transit_sql_frontend").TableDdl;
+const s = @import("transit_sql_frontend").TableSchema;
 test "MySQL DDL uses shared quoted names and literal backslashes without statement rewriting" {
     var owned = try ddl.compileDialect(e.allocator, "CREATE TABLE `people``archive` (`id` BIGINT PRIMARY KEY, `path` TEXT DEFAULT 'a\\b')", null, null, .mysql);
     defer owned.deinit();
@@ -121,7 +121,7 @@ test "Table DDL diagnostics retain actual causes and never classify unknown exec
         .{ "CREATE TABLE t (n INTEGER DEFAULT )", "sql.invalid_sql_syntax" },
     };
     inline for (cases) |case| {
-        var location: @import("Sql.zig").Location = .{};
+        var location: @import("transit_sql_frontend").Sql.Location = .{};
         if (ddl.compile(e.allocator, case[0], null, &location)) |success| {
             var owned = success;
             owned.deinit();
@@ -170,7 +170,7 @@ test "DDL retains unknown key and ALTER column positions through deferred bindin
         .{ "ALTER TABLE people ALTER payload SET DEFAULT LIST(1,128)", error.Overflow, "128" },
     };
     inline for (cases) |case| {
-        var location: @import("Sql.zig").Location = .{};
+        var location: @import("transit_sql_frontend").Sql.Location = .{};
         try e.expectError(case[1], ddl.compile(e.allocator, case[0], schema, &location));
         try e.expectEqual(std.mem.indexOf(u8, case[0], case[2]).?, location.offset);
     }

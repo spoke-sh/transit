@@ -5,10 +5,10 @@
 //! with prepared-plan invalidation (`D6`, `D7`, `P4`).
 const std = @import("std");
 const AnalyticalSql = @import("AnalyticalSql.zig");
-const Collation = @import("Collation.zig");
-const OperatorTraits = @import("OperatorTraits.zig");
-const Range = @import("Range.zig");
-const Types = @import("Types.zig");
+const Collation = @import("transit_sql_frontend").Collation;
+const OperatorTraits = @import("transit_sql_frontend").OperatorTraits;
+const Range = @import("transit_sql_frontend").Range;
+const Types = @import("transit_sql_frontend").Types;
 const v = Types.Values;
 
 pub const definition = "transit.fuze.bitemporal-and-tvf.v1.2026-10-30";

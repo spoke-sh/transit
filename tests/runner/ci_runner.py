@@ -39,7 +39,7 @@ def clean_runner():
         executable.write_text(f"#!{sys.executable}\n" + '''import json, os, sys
 from pathlib import Path
 assert not any(key.startswith("TRANSIT_") for key in os.environ)
-assert os.environ["ZIG_LOCAL_PKG_DIR"] == str(Path.cwd() / ".cache/ci-zig/p")
+assert os.environ["ZIG_LOCAL_PKG_DIR"] == "zig-pkg"
 with open(os.environ["CI_CLEAN_RECORD"], "a") as log:
     log.write(json.dumps(sys.argv[1:]) + "\\n")
 if "tests/runner/ci.py" in sys.argv or any(arg.startswith("check::") for arg in sys.argv):
@@ -57,7 +57,8 @@ if "tests/runner/ci.py" in sys.argv or any(arg.startswith("check::") for arg in 
         executable.chmod(0o755)
         record = root / "commands.jsonl"
         env = os.environ | {"PATH": str(root) + os.pathsep + os.environ["PATH"],
-                            "CI_CLEAN_RECORD": str(record), "TRANSIT_FIXTURE_LEAK": "denied"}
+                            "CI_CLEAN_RECORD": str(record), "TRANSIT_FIXTURE_LEAK": "denied",
+                            "ZIG_LOCAL_PKG_DIR": "/unavailable/inherited-packages"}
         for lane, exit_code in (("formal", 0), ("installation-ui", 0),
                                 *((lane, 0) for lane in SUITE["tiers"]["sdks"]), ("sdks", 0), ("formal", 23),
                                 ("check::fast", 0), ("check::contracts", 0), ("check::contracts", 24),
@@ -240,7 +241,11 @@ def main():
     assert len(select([], 'push')['native_matrix']['include']) == 3
     assert next(step for step in steps if step.get('name') == 'Download immutable native publications')['if'] == 'inputs.native_bundle'
     assert next(step for step in steps if step.get('name') == 'Run ${{ inputs.lane }} checks')['if'] == "inputs.native_family == ''"
-    assert execution["env"]["ZIG_LOCAL_PKG_DIR"] == "${{ github.workspace }}/.cache/ci-zig/p"
+    assert execution["env"]["ZIG_LOCAL_PKG_DIR"] == ".cache/ci-zig/p"
+    for definition in (workflow, yaml.safe_load((ROOT / '.github/workflows/release.yml').read_text())):
+        for job in definition['jobs'].values():
+            if package_directory := job.get('env', {}).get('ZIG_LOCAL_PKG_DIR'):
+                assert package_directory == '.cache/ci-zig/p'
     package_cache = next(step for step in steps if step.get("id") == "zig-cache")
     assert package_cache["with"]["key"].startswith("zig-v3-")
     reclaim = next(step for step in steps if step.get("name") == "Reclaim unused hosted SDKs")
@@ -286,7 +291,7 @@ def main():
     for row in workers:
         assert row["shell"] == SUITE["environments"][row["lane"]]["shell"]
     assert profile(SUITE, "formal") == {"shell": "ci-formal", "prepare": [["just", "transit-board::install"]]}
-    assert LANES["formal"] == ["test::sql-rewrites", "test::application-source-types", "test::model-delivery", "test::queue-lease-transaction-model",
+    assert LANES["formal"] == ["test::sql-rewrites", "test::model-delivery", "test::queue-lease-transaction-model",
                                "test::wal-model", "test::resident-owner-cache-model", "test::transaction-decision-model",
                                "test::storage-lifecycle-model", "test::transaction-workspace-model", "test::model",
                                "test::console-model", "test::statement-result-model", "test::table-transaction-model",

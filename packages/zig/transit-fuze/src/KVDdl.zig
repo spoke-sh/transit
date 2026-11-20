@@ -1,10 +1,10 @@
 //! Pure KV declaration and inspection syntax. Catalog identities, authorization
 //! and admission belong to the caller.
 const std = @import("std");
-const Sql = @import("Sql.zig");
-const Parser = @import("SqlTyped.zig");
-const Reference = @import("SqlReference.zig");
-const Types = @import("Types.zig");
+const Sql = @import("transit_sql_frontend").Sql;
+const Parser = @import("transit_sql_frontend").SqlTyped;
+const Reference = @import("transit_sql_frontend").SqlReference;
+const Types = @import("transit_sql_frontend").Types;
 
 pub const ValueType = enum(u8) {
     int64 = 1,
@@ -60,7 +60,7 @@ pub const Statement = struct {
     schema_name: ?[]const u8 = null,
     name: []const u8,
     action: union(enum) {
-        create: struct { if_not_exists: bool = false, spec: Spec, native_binding: ?@import("NativeBinding.zig").Kind = null },
+        create: struct { if_not_exists: bool = false, spec: Spec, native_binding: ?@import("transit_sql_frontend").NativeBinding.Kind = null },
         rename: []const u8,
         drop: struct { if_exists: bool = false },
     },
@@ -113,7 +113,7 @@ pub fn compile(allocator: std.mem.Allocator, text: []const u8, dialect: Sql.Dial
             const nullability = try parser.nullability(false);
             if (parser.word("NOT") or parser.word("NULL")) return error.DuplicateColumnConstraint;
             try parser.require(.right);
-            const native_binding = try @import("NativeBinding.zig").clause(&parser);
+            const native_binding = try @import("transit_sql_frontend").NativeBinding.clause(&parser);
             if (native_binding) |binding| if (!binding.isKV()) return error.InvalidNativeBindingKind;
             try parser.finish();
             const spec: Spec = .{ .value_type = value_type, .nullable = nullability.value, .fields = if (data_type.type == .structure) data_type.type.structure else &.{} };

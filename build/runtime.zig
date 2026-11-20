@@ -220,7 +220,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         app.root_module.addImport("transit_catalog", catalog.module("transit_catalog"));
         if (comptime std.mem.eql(u8, entry[0], "transit")) {
             app.root_module.addImport("transit_test", b.dependency("transit_test", .{ .target = target, .optimize = optimize }).module("transit_test"));
-            app.root_module.addImport("transit_compiler", b.dependency("transit_compiler", .{ .target = target, .optimize = optimize }).module("transit_compiler"));
+            app.root_module.addImport("transit_test_protocol", b.dependency("transit_test_protocol", .{ .target = target, .optimize = optimize }).module("transit_test_protocol"));
             app.root_module.addImport("transit_memory", b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory"));
             app.root_module.addOptions("build_version", @import("version.zig").options(b));
             // Executable hashing uses the same pinned library as server TLS,

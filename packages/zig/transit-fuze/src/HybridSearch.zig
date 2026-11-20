@@ -5,12 +5,12 @@
 const std = @import("std");
 const bitmap = @import("transit_bitmap");
 const memory = @import("transit_memory");
-const Collation = @import("Collation.zig");
+const Collation = @import("transit_sql_frontend").Collation;
 const GermanString = @import("GermanString.zig");
 const SearchOracle = @import("SearchOracle.zig");
 const TSearchSegment = @import("TSearchSegment.zig");
 const VectorizedSearch = @import("VectorizedSearch.zig");
-const VectorMetric = @import("VectorMetric.zig");
+const VectorMetric = @import("transit_sql_frontend").VectorMetric;
 
 pub const SnapshotBinding = struct {
     snapshot_lsn: u64,

@@ -1,8 +1,8 @@
 const std = @import("std");
 const e = std.testing;
-const j = @import("TableSchemaJson.zig");
-const s = @import("TableSchema.zig");
-const ddl = @import("TableDdl.zig");
+const j = @import("transit_sql_frontend").TableSchemaJson;
+const s = @import("transit_sql_frontend").TableSchema;
+const ddl = @import("transit_sql_frontend").TableDdl;
 const p = @import("transit_protocol");
 
 test "neutral schema preserves physical attributes and requires their explicit wire fields" {
@@ -160,7 +160,7 @@ test "neutral schema conversion rejects large shared defaults before whole schem
     try e.expectEqual(tracker.allocated_bytes, tracker.freed_bytes);
 }
 test "neutral schemas preserve large legal nested defaults within their separate wire budget" {
-    const types = @import("Types.zig");
+    const types = @import("transit_sql_frontend").Types;
     const cells = try e.allocator.alloc(types.Values.Cell, 60000);
     defer e.allocator.free(cells);
     @memset(cells, .null);
@@ -173,7 +173,7 @@ test "neutral schemas preserve large legal nested defaults within their separate
     try schema.validate();
     const encoded = try j.encode(e.allocator, schema);
     defer e.allocator.free(encoded);
-    try e.expect(encoded.len > @import("LogicalJson.zig").max_input_bytes);
+    try e.expect(encoded.len > @import("transit_sql_frontend").LogicalJson.max_input_bytes);
     try e.expect(encoded.len < j.max_input_bytes);
     var decoded = try j.decode(e.allocator, encoded);
     defer decoded.deinit();

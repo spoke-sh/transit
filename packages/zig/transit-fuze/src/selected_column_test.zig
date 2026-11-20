@@ -1,8 +1,8 @@
 const std = @import("std");
 const t = std.testing;
-const Types = @import("Types.zig");
-const v = @import("Values.zig");
-const s = @import("TableSchema.zig");
+const Types = @import("transit_sql_frontend").Types;
+const v = @import("transit_sql_frontend").Values;
+const s = @import("transit_sql_frontend").TableSchema;
 const p = @import("PhysicalCodecs.zig");
 
 fn compare(field: Types.Field, expected: v.Cell, actual: v.Cell) !void {

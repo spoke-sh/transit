@@ -1,6 +1,6 @@
 const std = @import("std");
 const t = std.testing;
-const m = @import("Types.zig");
+const m = @import("transit_sql_frontend").Types;
 const s = m.Semantics;
 const nested: m.Type = .{ .structure = &.{
     .{ .name = "id", .type = .uint128 },
