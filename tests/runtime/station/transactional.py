@@ -16,7 +16,7 @@ CASES = ("small", "large", "head", "begin", "claim", "input", "acquire", "dispat
 FAULTS = CASES[2:13]
 
 
-ALL_CASES = CASES + ("calls", "timers_pool")
+ALL_CASES = CASES + ("calls", "timers_pool", "services")
 
 
 def exercise(node, caller, root, profile, url, restart):
@@ -25,8 +25,8 @@ def exercise(node, caller, root, profile, url, restart):
     assert cases and all(case in ALL_CASES for case in cases)
     outcomes = []
     for case in cases:
-        if case in ("calls", "timers_pool"):
-            restart(maintenance=(case == "timers_pool"))
+        if case in ("calls", "timers_pool", "services"):
+            restart(maintenance=(case in ("timers_pool", "services")))
             subprocess.run([caller, url, f"station-transaction-{case}", str(profile)], check=True, timeout=180)
             outcomes.append(dict(case=case, worker_sigkill=False, owner_sigkill_restarts=1,
                                  replacement_principal=1202 if case == "calls" else 1209,

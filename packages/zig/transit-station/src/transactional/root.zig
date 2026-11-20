@@ -8,6 +8,8 @@ pub const Timer = @import("Timer.zig");
 pub const Runner = @import("Runner.zig");
 pub const Observer = @import("Observer.zig");
 pub const Pool = @import("Pool.zig");
+pub const Registry = @import("Registry.zig");
+pub const Supervisor = @import("Supervisor.zig");
 
 test {
     _ = Actor;
@@ -18,5 +20,7 @@ test {
     _ = Runner;
     _ = Observer;
     _ = Pool;
+    _ = Registry;
+    _ = Supervisor;
     _ = @import("calls_test.zig");
 }

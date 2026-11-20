@@ -43741,6 +43741,65 @@
         "transit_catalog"
       ]
     },
+    "packages/zig/transit-station/src/transactional/Registry.zig": {
+      "errors": {
+        "ExpectedCall": 2,
+        "InvalidDestination": 1,
+        "InvalidRegistryBinding": 3,
+        "InvalidRegistryGrant": 4,
+        "InvalidRegistryName": 2,
+        "InvalidRegistryRequest": 3,
+        "InvalidRegistryScope": 2,
+        "NameAlreadyBound": 1,
+        "NameNotBound": 2,
+        "RegistryDenied": 4,
+        "RegistryRevisionConflict": 1,
+        "RegistryScopeExists": 1,
+        "RegistryScopeNotFound": 2,
+        "UnexpectedReplySource": 3,
+        "UnknownCorrelation": 1,
+        "UnverifiedRegistryReply": 1
+      },
+      "outcomes": {
+        "Request.operation": [
+          "lookup",
+          "register",
+          "rebind",
+          "unregister"
+        ],
+        "Subject": [
+          "principal",
+          "process"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Binding.decode()": "<inferred>",
+        "Name.init()": "<inferred>",
+        "Request.decode()": "<inferred>",
+        "Request.encodeAlloc()": "<inferred>",
+        "Request.encodeInto()": "<inferred>",
+        "apply()": "<inferred>",
+        "authorize()": "<inferred>",
+        "create()": "<inferred>",
+        "grant()": "<inferred>",
+        "handle()": "<inferred>",
+        "nameKeyInto()": "<inferred>",
+        "route()": "<inferred>",
+        "routeCall()": "<inferred>",
+        "verifyAndRecordRoute()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 27,
+        "catch": 0
+      },
+      "imports": [
+        "Turn.zig",
+        "std",
+        "transit_catalog"
+      ]
+    },
     "packages/zig/transit-station/src/transactional/Runner.zig": {
       "errors": {
         "ActorDependencyUnresolved": 1,
@@ -43837,6 +43896,67 @@
         "std",
         "transit_catalog",
         "transit_data_client"
+      ]
+    },
+    "packages/zig/transit-station/src/transactional/Supervisor.zig": {
+      "errors": {
+        "ChildExists": 2,
+        "ChildNotFound": 1,
+        "InvalidAuthorityResponse": 1,
+        "InvalidChild": 9,
+        "InvalidLifecycleObservation": 5,
+        "InvalidReplacement": 1,
+        "InvalidTimerTicket": 1,
+        "SupervisorChildCapacity": 2,
+        "UnexpectedLifecycleObserver": 3
+      },
+      "outcomes": {
+        "Kind": [
+          "activation",
+          "failed",
+          "suspended",
+          "terminated",
+          "expired",
+          "placement_unavailable",
+          "initializing"
+        ],
+        "Phase": [
+          "watching",
+          "retry_wait",
+          "retry_requested",
+          "exhausted",
+          "retired",
+          "suspended",
+          "placement_unavailable",
+          "initializing"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "BackoffResponder.buildObservation()": "<inferred>",
+        "Child.decode()": "<inferred>",
+        "Observation.decode()": "<inferred>",
+        "Observation.encode()": "<inferred>",
+        "Observation.validate()": "<inferred>",
+        "Roster.decode()": "<inferred>",
+        "activeRoster()": "<inferred>",
+        "get()": "<inferred>",
+        "handle()": "<inferred>",
+        "observe()": "<inferred>",
+        "register()": "<inferred>",
+        "replace()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 29,
+        "catch": 0
+      },
+      "imports": [
+        "Observer.zig",
+        "Timer.zig",
+        "Turn.zig",
+        "std",
+        "transit_catalog"
       ]
     },
     "packages/zig/transit-station/src/transactional/Timer.zig": {
@@ -43985,7 +44105,9 @@
         "Envelope.zig",
         "Observer.zig",
         "Pool.zig",
+        "Registry.zig",
         "Runner.zig",
+        "Supervisor.zig",
         "Timer.zig",
         "Turn.zig",
         "Wait.zig",

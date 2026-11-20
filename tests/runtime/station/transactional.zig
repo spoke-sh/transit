@@ -965,12 +965,276 @@ fn exerciseTimersAndPool(init: std.process.Init, client: c.DirectTableClient, ad
     try t.expectError(error.PoolStopped, pool.step(10));
 }
 
+fn exerciseServices(init: std.process.Init, client: c.DirectTableClient, admin: anytype, role: u64) !void {
+    (try client.call(.initialize)).deinit();
+    var output: std.heap.ArenaAllocator = .init(init.gpa);
+    defer output.deinit();
+
+    const key_1209 = try p.Ed25519.KeyPair.generateDeterministic(@splat(129));
+    _ = try admin.change(.{ .bind_credential = .{ .principal = 1209, .role = role, .public_key = key_1209.public_key.toBytes() } });
+    var obs_client = client;
+    obs_client.connection.principal = 1209;
+    obs_client.key = key_1209;
+
+    const svc_inbox = try createLog(init, client, &output, role, 850001, "svc_shared_inbox", .queue);
+    const timers_queue = try createTimerQueue(init, client, &output, role, 850002, "svc_timers_q", 30000);
+
+    const reg_spec = try createActor(init, client, &output, admin, role, 101, 851000, "svc_registry", svc_inbox, &.{});
+    const caller_spec = try createActor(init, client, &output, admin, role, 101, 852000, "svc_caller", svc_inbox, &.{});
+    const target1_spec = try createActor(init, client, &output, admin, role, 101, 853000, "svc_target1", svc_inbox, &.{});
+    const target2_spec = try createActor(init, client, &output, admin, role, 101, 854000, "svc_target2", svc_inbox, &.{});
+    var sup_spec = try createActor(init, client, &output, admin, role, 101, 855000, "svc_supervisor", svc_inbox, &.{});
+    sup_spec.actor.timers = timers_queue;
+
+    const child_pid = try admin.submit(.{ .spawn = .{} });
+    _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .process, .id = child_pid }, .grantee = role, .privileges = p.permission(.execute) | p.permission(.inspect) } });
+    _ = try admin.submit(.{ .own = .{ .pid = child_pid, .expected_generation = 0, .worker = 101 } });
+
+    const replacement_pid = try admin.submit(.{ .spawn = .{} });
+    _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .process, .id = replacement_pid }, .grantee = role, .privileges = p.permission(.execute) | p.permission(.inspect) } });
+    _ = try admin.submit(.{ .own = .{ .pid = replacement_pid, .expected_generation = 0, .worker = 101 } });
+
+    var reg_runner = try Runner.init(init.gpa, client, reg_spec.actor, reg_spec.activation);
+    defer reg_runner.deinit();
+    try reg_runner.bootstrap();
+
+    var caller_runner = try Runner.init(init.gpa, client, caller_spec.actor, caller_spec.activation);
+    defer caller_runner.deinit();
+    try caller_runner.bootstrap();
+
+    var target1_runner = try Runner.init(init.gpa, client, target1_spec.actor, target1_spec.activation);
+    defer target1_runner.deinit();
+    try target1_runner.bootstrap();
+
+    var target2_runner = try Runner.init(init.gpa, client, target2_spec.actor, target2_spec.activation);
+    defer target2_runner.deinit();
+    try target2_runner.bootstrap();
+
+    var sup_runner = try Runner.init(init.gpa, client, sup_spec.actor, sup_spec.activation);
+    defer sup_runner.deinit();
+    try sup_runner.bootstrap();
+
+    // 1. Scoped Registry: register, route in caller transaction, then rebind/unregister without redirecting already-routed message.
+    const RegistryBody = struct {
+        state_object: u64,
+        return_inbox: p.StreamQueue.Partition,
+        caller_pid: u64,
+        fn handle(raw: *anyopaque, turn: *s.Turn) !void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            switch (turn.context.envelope.?.kind) {
+                .cast => {
+                    if (std.mem.eql(u8, turn.input, "provision")) {
+                        try s.Registry.create(turn, self.state_object, 1);
+                        try s.Registry.grant(turn, 1, .{ .process = self.caller_pid }, .{ .lookup = true, .mutate = true });
+                    }
+                },
+                .call => try s.Registry.handle(turn, self.state_object, self.return_inbox),
+                else => return error.UnexpectedEnvelopeKind,
+            }
+        }
+    };
+    const RouteCallerBody = struct {
+        inbox: p.StreamQueue.Partition,
+        reg_pid: u64,
+        target1: u64,
+        target2: u64,
+        last_routed: u64 = 0,
+        last_revision: u64 = 0,
+        phase: enum { idle, registering, looking_up_1, rebinding, looking_up_2, unregistering } = .idle,
+        fn handle(raw: *anyopaque, turn: *s.Turn) !void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            const ledger = try s.Registry.Name.init("ledger");
+            switch (turn.context.envelope.?.kind) {
+                .cast => {
+                    if (std.mem.eql(u8, turn.input, "register")) {
+                        self.phase = .registering;
+                        const req = try (s.Registry.Request{ .scope = 1, .name = ledger, .operation = .register, .destination = self.target1 }).encodeAlloc(turn.allocator);
+                        _ = try turn.call(self.inbox, self.reg_pid, req);
+                    } else if (std.mem.eql(u8, turn.input, "lookup-and-route-1")) {
+                        self.phase = .looking_up_1;
+                        const req = try (s.Registry.Request{ .scope = 1, .name = ledger, .operation = .lookup }).encodeAlloc(turn.allocator);
+                        _ = try turn.call(self.inbox, self.reg_pid, req);
+                    } else if (std.mem.eql(u8, turn.input, "rebind")) {
+                        self.phase = .rebinding;
+                        const req = try (s.Registry.Request{ .scope = 1, .name = ledger, .operation = .rebind, .expected_revision = 1, .destination = self.target2 }).encodeAlloc(turn.allocator);
+                        _ = try turn.call(self.inbox, self.reg_pid, req);
+                    } else if (std.mem.eql(u8, turn.input, "lookup-and-route-2")) {
+                        self.phase = .looking_up_2;
+                        const req = try (s.Registry.Request{ .scope = 1, .name = ledger, .operation = .lookup }).encodeAlloc(turn.allocator);
+                        _ = try turn.call(self.inbox, self.reg_pid, req);
+                    } else if (std.mem.eql(u8, turn.input, "unregister")) {
+                        self.phase = .unregistering;
+                        const req = try (s.Registry.Request{ .scope = 1, .name = ledger, .operation = .unregister, .expected_revision = 2 }).encodeAlloc(turn.allocator);
+                        _ = try turn.call(self.inbox, self.reg_pid, req);
+                    }
+                },
+                .reply => {
+                    const b = try s.Registry.Binding.decode(turn.input);
+                    self.last_revision = b.revision;
+                    if (self.phase == .looking_up_1) {
+                        self.last_routed = try s.Registry.route(turn, self.reg_pid, self.inbox, "first-order");
+                    } else if (self.phase == .looking_up_2) {
+                        self.last_routed = try s.Registry.route(turn, self.reg_pid, self.inbox, "second-order");
+                    }
+                },
+                else => return error.UnexpectedEnvelopeKind,
+            }
+        }
+    };
+    const TargetBody = struct {
+        received: usize = 0,
+        fn handle(raw: *anyopaque, turn: *s.Turn) !void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            self.received += 1;
+            try turn.put("last", turn.input);
+        }
+    };
+
+    var reg_body: RegistryBody = .{ .state_object = reg_spec.actor.state.object.object, .return_inbox = svc_inbox, .caller_pid = caller_spec.pid };
+    var route_caller: RouteCallerBody = .{ .inbox = svc_inbox, .reg_pid = reg_spec.pid, .target1 = target1_spec.pid, .target2 = target2_spec.pid };
+    var target1_body: TargetBody = .{};
+    var target2_body: TargetBody = .{};
+
+    try enqueueEnvelope(&output, client, svc_inbox, 856001, reg_spec.pid, .{ .kind = .cast, .payload = "provision" });
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&reg_runner, .{ .context = &reg_body, .run = RegistryBody.handle }));
+
+    // Register "ledger" -> target1
+    try enqueueEnvelope(&output, client, svc_inbox, 856002, caller_spec.pid, .{ .kind = .cast, .payload = "register" });
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&caller_runner, .{ .context = &route_caller, .run = RouteCallerBody.handle }));
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&reg_runner, .{ .context = &reg_body, .run = RegistryBody.handle }));
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&caller_runner, .{ .context = &route_caller, .run = RouteCallerBody.handle }));
+    try t.expectEqual(@as(u64, 1), route_caller.last_revision);
+
+    // Lookup and route "first-order" to target1 BEFORE target1 runs; then rebind "ledger" -> target2 and unregister!
+    try enqueueEnvelope(&output, client, svc_inbox, 856003, caller_spec.pid, .{ .kind = .cast, .payload = "lookup-and-route-1" });
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&caller_runner, .{ .context = &route_caller, .run = RouteCallerBody.handle }));
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&reg_runner, .{ .context = &reg_body, .run = RegistryBody.handle }));
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&caller_runner, .{ .context = &route_caller, .run = RouteCallerBody.handle }));
+    try t.expectEqual(target1_spec.pid, route_caller.last_routed);
+
+    try enqueueEnvelope(&output, client, svc_inbox, 856004, caller_spec.pid, .{ .kind = .cast, .payload = "rebind" });
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&caller_runner, .{ .context = &route_caller, .run = RouteCallerBody.handle }));
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&reg_runner, .{ .context = &reg_body, .run = RegistryBody.handle }));
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&caller_runner, .{ .context = &route_caller, .run = RouteCallerBody.handle }));
+    try t.expectEqual(@as(u64, 2), route_caller.last_revision);
+
+    try enqueueEnvelope(&output, client, svc_inbox, 856005, caller_spec.pid, .{ .kind = .cast, .payload = "lookup-and-route-2" });
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&caller_runner, .{ .context = &route_caller, .run = RouteCallerBody.handle }));
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&reg_runner, .{ .context = &reg_body, .run = RegistryBody.handle }));
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&caller_runner, .{ .context = &route_caller, .run = RouteCallerBody.handle }));
+    try t.expectEqual(target2_spec.pid, route_caller.last_routed);
+
+    try enqueueEnvelope(&output, client, svc_inbox, 856006, caller_spec.pid, .{ .kind = .cast, .payload = "unregister" });
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&caller_runner, .{ .context = &route_caller, .run = RouteCallerBody.handle }));
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&reg_runner, .{ .context = &reg_body, .run = RegistryBody.handle }));
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&caller_runner, .{ .context = &route_caller, .run = RouteCallerBody.handle }));
+    try t.expectEqual(@as(u64, 3), route_caller.last_revision);
+
+    // Target1 still receives "first-order" and Target2 receives "second-order" despite subsequent rebind and tombstone.
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&target1_runner, .{ .context = &target1_body, .run = TargetBody.handle }));
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&target2_runner, .{ .context = &target2_body, .run = TargetBody.handle }));
+    try t.expectEqual(@as(usize, 1), target1_body.received);
+    try t.expectEqual(@as(usize, 1), target2_body.received);
+    try t.expectEqualStrings("first-order", (try KV.apply(&output, client, .{ .get = .{ .object = target1_spec.actor.state.object, .key = "last" } })).value.value.?.value.atom.bytes);
+    try t.expectEqualStrings("second-order", (try KV.apply(&output, client, .{ .get = .{ .object = target2_spec.actor.state.object, .key = "last" } })).value.value.?.value.atom.bytes);
+
+    // 2. Transactional Supervisor + Observer BackoffResponder over declared data and Timer Queue.
+    const SupervisorBody = struct {
+        child_id: u64,
+        replacement_id: u64,
+        retire_cut: u64 = 0,
+        fn handle(raw: *anyopaque, turn: *s.Turn) !void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            if (std.mem.eql(u8, turn.input, "register-child")) {
+                try s.Supervisor.register(turn, .{ .pid = self.child_id, .observer = 1209, .limit = 1, .backoff_ms = 2500 });
+                return;
+            }
+            if (std.mem.eql(u8, turn.input, "replace-child")) {
+                try s.Supervisor.replace(turn, self.child_id, self.retire_cut, .{ .pid = self.replacement_id, .observer = 1209, .limit = 2, .backoff_ms = 0 });
+                return;
+            }
+            try s.Supervisor.handle(turn);
+        }
+    };
+    var sup_body: SupervisorBody = .{ .child_id = child_pid, .replacement_id = replacement_pid };
+    try enqueueEnvelope(&output, client, svc_inbox, 856101, sup_spec.pid, .{ .kind = .cast, .payload = "register-child" });
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&sup_runner, .{ .context = &sup_body, .run = SupervisorBody.handle }));
+
+    var inspector: s.Observer.NativeInspector = .{
+        .client = client.authority,
+        .realm = client.connection.scope.realm,
+        .principal = 1209,
+        .key = key_1209,
+    };
+    var backoff_responder: s.Supervisor.BackoffResponder = .{ .process_view = inspector.view() };
+    var observer = try s.Observer.init(init.gpa, obs_client, timers_queue, null, 30000, 10, inspector.view());
+    defer observer.deinit();
+    observer.backoff_builder = backoff_responder.builder();
+
+    const now_ms = (try Queue.apply(&output, client, .{ .current_time = timers_queue })).current_time.time.earliest_ms;
+    const proc_before = try inspector.view().inspect(&inspector, child_pid);
+    const fail_obs = try (s.Supervisor.Observation{
+        .pid = child_pid,
+        .generation = proc_before.generation,
+        .failure = 1,
+        .cut = proc_before.position,
+        .observed_ms = now_ms,
+        .kind = .failed,
+    }).encode();
+    try enqueueEnvelope(&output, obs_client, svc_inbox, 856102, sup_spec.pid, .{ .kind = .cast, .payload = &fail_obs });
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&sup_runner, .{ .context = &sup_body, .run = SupervisorBody.handle }));
+
+    const child_k = s.Supervisor.key(child_pid);
+    const waiting_child = try s.Supervisor.Child.decode((try KV.apply(&output, client, .{ .get = .{ .object = sup_spec.actor.state.object, .key = &child_k } })).value.value.?.value.atom.bytes);
+    try t.expectEqual(s.Supervisor.Phase.retry_wait, waiting_child.phase);
+
+    // Observer claims due supervisor_backoff ticket from timers Queue and delivers SUP1 to transition to retry_requested.
+    var backoff_delivered = false;
+    for (0..16) |_| {
+        if (try observer.step(500) == .delivered) {
+            backoff_delivered = true;
+            break;
+        }
+    }
+    try t.expect(backoff_delivered);
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&sup_runner, .{ .context = &sup_body, .run = SupervisorBody.handle }));
+    const requested_child = try s.Supervisor.Child.decode((try KV.apply(&output, client, .{ .get = .{ .object = sup_spec.actor.state.object, .key = &child_k } })).value.value.?.value.atom.bytes);
+    try t.expectEqual(s.Supervisor.Phase.retry_requested, requested_child.phase);
+    try t.expectEqual(@as(u8, 1), requested_child.attempts);
+
+    // Permanent termination retires child; conditional replace binds replacement_pid.
+    _ = try admin.submit(.{ .terminate = child_pid });
+    const proc_term = try inspector.view().inspect(&inspector, child_pid);
+    sup_body.retire_cut = proc_term.position;
+    const term_obs = try (s.Supervisor.Observation{
+        .pid = child_pid,
+        .generation = proc_term.generation,
+        .failure = 0,
+        .cut = proc_term.position,
+        .observed_ms = requested_child.observed_ms + 10,
+        .kind = .terminated,
+    }).encode();
+    try enqueueEnvelope(&output, obs_client, svc_inbox, 856103, sup_spec.pid, .{ .kind = .cast, .payload = &term_obs });
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&sup_runner, .{ .context = &sup_body, .run = SupervisorBody.handle }));
+
+    try enqueueEnvelope(&output, client, svc_inbox, 856104, sup_spec.pid, .{ .kind = .cast, .payload = "replace-child" });
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&sup_runner, .{ .context = &sup_body, .run = SupervisorBody.handle }));
+
+    const retired_child = try s.Supervisor.Child.decode((try KV.apply(&output, client, .{ .get = .{ .object = sup_spec.actor.state.object, .key = &child_k } })).value.value.?.value.atom.bytes);
+    try t.expectEqual(s.Supervisor.Phase.retired, retired_child.phase);
+    try t.expectEqual(@as(?u64, replacement_pid), retired_child.successor);
+    const succ_k = s.Supervisor.key(replacement_pid);
+    const succ_child = try s.Supervisor.Child.decode((try KV.apply(&output, client, .{ .get = .{ .object = sup_spec.actor.state.object, .key = &succ_k } })).value.value.?.value.atom.bytes);
+    try t.expectEqual(s.Supervisor.Phase.watching, succ_child.phase);
+}
+
 fn caseMissingBegin(case: Case) bool {
     return case == .head;
 }
 pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, role: u64, profile: []const u8, command: []const u8) !void {
     if (std.mem.eql(u8, command, "calls")) return exerciseCalls(init, client, admin, role);
     if (std.mem.eql(u8, command, "timers_pool")) return exerciseTimersAndPool(init, client, admin, role);
+    if (std.mem.eql(u8, command, "services")) return exerciseServices(init, client, admin, role);
     var parts = std.mem.splitScalar(u8, command, '-');
     const phase = parts.next() orelse return error.InvalidPhase;
     const case = std.meta.stringToEnum(Case, parts.next() orelse return error.InvalidCase) orelse return error.InvalidCase;
