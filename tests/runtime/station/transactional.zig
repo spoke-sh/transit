@@ -594,11 +594,383 @@ fn exerciseCalls(init: std.process.Init, client: c.DirectTableClient, admin: any
     try t.expectEqualStrings("cancelled-2", (try KV.apply(&output, client, .{ .get = .{ .object = caller_spec.actor.state.object, .key = "status" } })).value.value.?.value.atom.bytes);
 }
 
+fn createTimerQueue(init: std.process.Init, client: c.DirectTableClient, output: *std.heap.ArenaAllocator, role: u64, object: u64, name: []const u8, lease_ms: u64) !p.StreamQueue.Partition {
+    const intent: c.DirectLog.Intent = .{ .kind = .queue, .namespace = 1, .name = try .init(name), .action = .{ .create = .{
+        .owner = role,
+        .schema = Runner.logSchema(object),
+        .configuration = .{ .partitioning = .{ .count = 1, .key_column = null, .hash = .sha256_64 }, .retention = .{ .max_age_ms = null }, .policy = .{ .queue = .{ .ordering = .unordered, .key_column = null, .lease_ms = lease_ms, .maximum_lease_ms = 300000, .maximum_attempts = 8, .backoff = .{ .initial_ms = 10, .maximum_ms = 100, .multiplier = 1 }, .dead_letter = null } } },
+        .limits = .{ .append_rows = 128, .append_bytes = 1024 * 1024, .claim_rows = 16, .read_rows = 128, .read_bytes = 1024 * 1024, .active_leases = 64, .waiters = 64, .timer_steps = 64 },
+    } } };
+    const request: c.DirectLog.Request = .{ .intent = intent, .binding = .{ .definition = p.Growth.current_definition, .identity = op(client, object + 100), .target = .{ .scope = client.connection.scope, .branch = 1, .object = object }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(init.gpa) } };
+    _ = try c.DirectLogClient.apply(output, client, .{ .admit = request });
+    const completed = (try c.DirectLogClient.apply(output, client, .{ .operation = .{ .binding = request.binding, .command = .execute, .steps = 16 } })).operation.operation;
+    try t.expectEqual(.complete, completed.phase);
+    return .{ .definition = p.Growth.current_definition, .interpretation = completed.resulting.?.stored.declaration.interpretation, .partition = 0 };
+}
+
+fn exerciseTimersAndPool(init: std.process.Init, client: c.DirectTableClient, admin: anytype, role: u64) !void {
+    (try client.call(.initialize)).deinit();
+    var output: std.heap.ArenaAllocator = .init(init.gpa);
+    defer output.deinit();
+
+    // Dedicated observer principal 1209 (no actor execution provenance).
+    const key_1209 = try p.Ed25519.KeyPair.generateDeterministic(@splat(129));
+    _ = try admin.change(.{ .bind_credential = .{ .principal = 1209, .role = role, .public_key = key_1209.public_key.toBytes() } });
+    var obs_client = client;
+    obs_client.connection.principal = 1209;
+    obs_client.key = key_1209;
+
+    const key_1203 = try p.Ed25519.KeyPair.generateDeterministic(@splat(123));
+    _ = try admin.change(.{ .bind_credential = .{ .principal = 1203, .role = role, .public_key = key_1203.public_key.toBytes() } });
+    var callee_client = client;
+    callee_client.connection.principal = 1203;
+    callee_client.key = key_1203;
+
+    const timers_queue = try createTimerQueue(init, client, &output, role, 830001, "station_timers_q", 30000);
+    const caller_inbox = try createLog(init, client, &output, role, 830002, "timer_caller_inbox", .queue);
+    const callee_inbox = try createLog(init, client, &output, role, 830003, "timer_callee_inbox", .queue);
+
+    var caller_spec = try createActor(init, client, &output, admin, role, 101, 831000, "timer_caller", caller_inbox, &.{callee_inbox});
+    caller_spec.actor.timers = timers_queue;
+    const callee_spec = try createActor(init, client, &output, admin, role, 1203, 832000, "timer_callee", callee_inbox, &.{caller_inbox});
+
+    var caller_runner = try Runner.init(init.gpa, client, caller_spec.actor, caller_spec.activation);
+    defer caller_runner.deinit();
+    try caller_runner.bootstrap();
+
+    var callee_runner = try Runner.init(init.gpa, callee_client, callee_spec.actor, callee_spec.activation);
+    defer callee_runner.deinit();
+    try callee_runner.bootstrap();
+
+    var inspector: s.Observer.NativeInspector = .{
+        .client = client.authority,
+        .realm = client.connection.scope.realm,
+        .principal = 1209,
+        .key = key_1209,
+    };
+    var observer = try s.Observer.init(init.gpa, obs_client, timers_queue, null, 2000, 1, inspector.view());
+    defer observer.deinit();
+
+    const TimedCaller = struct {
+        caller_client: c.DirectTableClient,
+        timers_q: p.StreamQueue.Partition,
+        peer_inbox: p.StreamQueue.Partition,
+        callee_pid: u64,
+        delay_ms: u64 = 2000,
+        deadline_ms: u64 = 0,
+        corr1: u64 = 0,
+        corr2: u64 = 0,
+        timeouts_seen: usize = 0,
+        replies_seen: usize = 0,
+        fn sampleDeadline(self: *@This(), alloc: std.mem.Allocator) !u64 {
+            var tmp: std.heap.ArenaAllocator = .init(alloc);
+            defer tmp.deinit();
+            const now = (try Queue.apply(&tmp, self.caller_client, .{ .current_time = self.timers_q })).current_time.time.earliest_ms;
+            self.deadline_ms = now + self.delay_ms;
+            return self.deadline_ms;
+        }
+        fn handle(raw: *anyopaque, turn: *s.Turn) !void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            switch (turn.context.envelope.?.kind) {
+                .cast => {
+                    if (std.mem.eql(u8, turn.input, "slow")) {
+                        const dl = try self.sampleDeadline(turn.allocator);
+                        self.corr1 = try turn.callWithTimer(self.peer_inbox, self.callee_pid, "slow-op", dl, 1209);
+                        try turn.put("timer_result", "waiting-slow");
+                    } else if (std.mem.eql(u8, turn.input, "fast")) {
+                        const dl = try self.sampleDeadline(turn.allocator);
+                        self.corr2 = try turn.callWithTimer(self.peer_inbox, self.callee_pid, "fast-op", dl, 1209);
+                        try turn.put("timer_result", "waiting-fast");
+                    }
+                },
+                .timeout => {
+                    self.timeouts_seen += 1;
+                    const obs = try s.Timer.Observation.decode(turn.input);
+                    try t.expect(obs.observed_ms >= self.deadline_ms);
+                    try turn.put("timer_result", "timed-out");
+                },
+                .reply => {
+                    self.replies_seen += 1;
+                    try turn.put("timer_result", turn.input);
+                },
+                else => return error.UnexpectedEnvelopeKind,
+            }
+        }
+    };
+    const TimedCallee = struct {
+        return_inbox: p.StreamQueue.Partition,
+        fn handle(raw: *anyopaque, turn: *s.Turn) !void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            if (std.mem.eql(u8, turn.input, "slow-op")) {
+                try turn.reply(self.return_inbox, "late-slow-reply");
+            } else {
+                try turn.reply(self.return_inbox, "fast-ok");
+            }
+        }
+    };
+
+    var timed_caller: TimedCaller = .{ .caller_client = client, .timers_q = timers_queue, .peer_inbox = callee_inbox, .callee_pid = callee_spec.pid, .delay_ms = 4500 };
+    var timed_callee: TimedCallee = .{ .return_inbox = caller_inbox };
+
+    // 1. Schedule timed call; ticket stays unclaimable on QueueTimingWheel before deadline_ms.
+    try enqueueEnvelope(&output, client, caller_inbox, 835001, caller_spec.pid, .{ .kind = .cast, .payload = "slow" });
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&caller_runner, .{ .context = &timed_caller, .run = TimedCaller.handle }));
+    try t.expectEqual(s.Observer.Result.idle, try observer.step(10));
+
+    // 2. Observer crash between TMO1 enqueue and ticket ACK deduplicates via deterministic d.Operation on restart.
+    const CrashAtEnqueued = struct {
+        crashed: bool = false,
+        fn hit(raw: *anyopaque, pt: s.Observer.Point) !void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            if (pt == .enqueued and !self.crashed) {
+                self.crashed = true;
+                return error.SimulatedObserverCrash;
+            }
+        }
+    };
+    var crash_hook: CrashAtEnqueued = .{};
+    observer.hook = .{ .context = &crash_hook, .hit = CrashAtEnqueued.hit };
+    for (0..16) |_| {
+        const res = observer.step(500) catch |err| {
+            try t.expectEqual(error.SimulatedObserverCrash, err);
+            break;
+        };
+        try t.expectEqual(s.Observer.Result.idle, res);
+    }
+    observer.hook = null;
+    try t.expect(crash_hook.crashed);
+
+    // Wait for un-ACKed timer ticket lease (2s + configured 2*10s clock error bound) to expire so restarted observer re-claims at epoch 2.
+    var observer_restarted = try s.Observer.init(init.gpa, obs_client, timers_queue, null, 30000, 2, inspector.view());
+    defer observer_restarted.deinit();
+    var redelivered = false;
+    for (0..64) |_| {
+        if (try observer_restarted.step(500) == .delivered) {
+            redelivered = true;
+            break;
+        }
+    }
+    try t.expect(redelivered);
+    // QueuePartition deduplicated the identical deliver d.Operation: caller inbox cut has only 2 total rows (initial cast + 1 TMO1).
+    try t.expectEqual(@as(u64, 2), (try Queue.apply(&output, client, .{ .observe = caller_inbox })).cut.next);
+
+    // Caller processes TMO1 once; late callee reply is absorbed as closed-reply without invoking handler.
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&caller_runner, .{ .context = &timed_caller, .run = TimedCaller.handle }));
+    try t.expectEqual(@as(usize, 1), timed_caller.timeouts_seen);
+    try t.expectEqualStrings("timed-out", (try KV.apply(&output, client, .{ .get = .{ .object = caller_spec.actor.state.object, .key = "timer_result" } })).value.value.?.value.atom.bytes);
+
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&callee_runner, .{ .context = &timed_callee, .run = TimedCallee.handle }));
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&caller_runner, .{ .context = &timed_caller, .run = TimedCaller.handle }));
+    try t.expectEqual(@as(usize, 0), timed_caller.replies_seen);
+    try t.expectEqualStrings("timed-out", (try KV.apply(&output, client, .{ .get = .{ .object = caller_spec.actor.state.object, .key = "timer_result" } })).value.value.?.value.atom.bytes);
+
+    // 3. Reply-before-timeout race: fast reply closes wait, late TMO1 is absorbed as closed-timeout.
+    timed_caller.delay_ms = 4500;
+    try enqueueEnvelope(&output, client, caller_inbox, 835002, caller_spec.pid, .{ .kind = .cast, .payload = "fast" });
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&caller_runner, .{ .context = &timed_caller, .run = TimedCaller.handle }));
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&callee_runner, .{ .context = &timed_callee, .run = TimedCallee.handle }));
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&caller_runner, .{ .context = &timed_caller, .run = TimedCaller.handle }));
+    try t.expectEqual(@as(usize, 1), timed_caller.replies_seen);
+    try t.expectEqualStrings("fast-ok", (try KV.apply(&output, client, .{ .get = .{ .object = caller_spec.actor.state.object, .key = "timer_result" } })).value.value.?.value.atom.bytes);
+
+    var delivered_second = false;
+    for (0..16) |_| {
+        if (try observer_restarted.step(500) == .delivered) {
+            delivered_second = true;
+            break;
+        }
+    }
+    try t.expect(delivered_second);
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&caller_runner, .{ .context = &timed_caller, .run = TimedCaller.handle }));
+    try t.expectEqual(@as(usize, 1), timed_caller.timeouts_seen);
+    try t.expectEqualStrings("fast-ok", (try KV.apply(&output, client, .{ .get = .{ .object = caller_spec.actor.state.object, .key = "timer_result" } })).value.value.?.value.atom.bytes);
+    try t.expectEqualStrings(s.Wait.closed_timeout_disposition, (try KV.apply(&output, client, .{ .get = .{ .object = caller_spec.actor.state.object, .key = s.Wait.disposition_key } })).value.value.?.value.atom.bytes);
+
+    // 4. Terminated target PID settles obsolete ticket cleanly; mismatched observer ticket is refused without settlement.
+    const dead_pid = try admin.submit(.{ .spawn = .{} });
+    _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .process, .id = dead_pid }, .grantee = role, .privileges = p.permission(.inspect) } });
+    _ = try admin.submit(.{ .terminate = dead_pid });
+    const enqueueTicket = struct {
+        fn send(arena: *std.heap.ArenaAllocator, caller_c: c.DirectTableClient, q: p.StreamQueue.Partition, op_num: u64, ticket: s.Timer.Ticket) !void {
+            const raw = try ticket.encodeAlloc(arena.allocator());
+            const id = op(caller_c, op_num);
+            const cells = [_]c.fuze.Types.Values.Cell{ .{ .value = .{ .atom = .{ .signed = @intCast(ticket.observer) } } }, .{ .value = .{ .atom = .{ .bytes = raw } } } };
+            var buf: [8192]u8 = undefined;
+            const payload = try c.storage.LogBatch.encode(Runner.logSchema(q.interpretation.object.object), id, .queue, &.{.{ .cells = &cells, .visible_ms = 0 }}, &buf);
+            const append: p.StreamQueue.Append = .{ .target = q, .operation = id, .kind = .queue, .producer = null, .rows = 1, .payload = c.storage.LogBatch.content(payload) };
+            _ = try Queue.apply(arena, caller_c, .{ .mutate = .{ .work = .{ .enqueue = append }, .payload = payload } });
+        }
+    }.send;
+    try enqueueTicket(&output, client, timers_queue, 835010, .{
+        .definition = p.Growth.current_definition,
+        .kind = .wait_timeout,
+        .target_pid = dead_pid,
+        .target_inbox = caller_inbox,
+        .correlation = 0x90001,
+        .deadline_ms = 1,
+        .observer = 1209,
+    });
+    try t.expectEqual(s.Observer.Result.settled_obsolete, try observer_restarted.step(100));
+
+    try enqueueTicket(&output, client, timers_queue, 835011, .{
+        .definition = p.Growth.current_definition,
+        .kind = .wait_timeout,
+        .target_pid = caller_spec.pid,
+        .target_inbox = caller_inbox,
+        .correlation = 0x90002,
+        .deadline_ms = 1,
+        .observer = 9999,
+    });
+    try t.expectError(error.UnexpectedObserverTicket, observer_restarted.step(100));
+
+    // 5. Zero-worker idle Pool: 1,000 durable actors in paged KV over 4 active Runner slots.
+    const pool_inbox = try createLog(init, client, &output, role, 836001, "pool_shared_inbox", .queue);
+    const seed_actor = try createActor(init, client, &output, admin, role, 101, 837000, "pool_seed", pool_inbox, &.{});
+    {
+        var seed_runner = try Runner.init(init.gpa, client, seed_actor.actor, seed_actor.activation);
+        defer seed_runner.deinit();
+        try seed_runner.bootstrap();
+    }
+
+    const active_indices = [_]usize{ 0, 137, 289, 412, 577, 701, 864, 999 };
+    var pids: [1000]u64 = undefined;
+    pids[0] = seed_actor.pid;
+    for (1..1000) |idx| {
+        var is_active = false;
+        for (active_indices) |active_idx| if (active_idx == idx) {
+            is_active = true;
+            break;
+        };
+        if (is_active) {
+            const spawned = try admin.submit(.{ .spawn = .{} });
+            _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .process, .id = spawned }, .grantee = role, .privileges = p.permission(.execute) | p.permission(.inspect) } });
+            _ = try admin.submit(.{ .own = .{ .pid = spawned, .expected_generation = 0, .worker = 101 } });
+            pids[idx] = spawned;
+        } else {
+            pids[idx] = 900_000 + idx;
+        }
+    }
+
+    const makePoolDeclaration = struct {
+        fn build(alloc: std.mem.Allocator, template: Actor.Declaration, pid: u64) !Actor.Declaration {
+            const fields = [_]c.fuze.WorkloadProjection.Field{ .{ .column = 1 }, .{ .column = 2 } };
+            const layout = try c.fuze.WorkloadProjection.schemaLayout(Runner.logSchema(template.inbox.interpretation.object.object), &fields, .claim);
+            const pred = try c.fuze.QueuePredicate.encode(alloc, template.inbox, Runner.logSchema(template.inbox.interpretation.object.object), &fields, .{
+                .schema = layout.typeOf(),
+                .source_basis = @splat(0),
+                .collations = layout.collations,
+                .projection = &.{0},
+                .predicate = .{ .compare = .{ .column = 0, .op = .eq, .value = .{ .signed = @intCast(pid) } } },
+            });
+            var decl = template;
+            decl.pid = pid;
+            decl.predicate = pred;
+            return decl;
+        }
+    }.build;
+
+    // Persist the remaining 999 initialized Actor.Head rows in two paged KV batches.
+    for ([_]struct { start: usize, end: usize, op_num: u64 }{
+        .{ .start = 1, .end = 500, .op_num = 838001 },
+        .{ .start = 500, .end = 1000, .op_num = 838002 },
+    }) |batch| {
+        var batch_arena: std.heap.ArenaAllocator = .init(init.gpa);
+        defer batch_arena.deinit();
+        var changes = try batch_arena.allocator().alloc(c.storage.KVPartition.Change, batch.end - batch.start);
+        var keys = try batch_arena.allocator().alloc([14]u8, batch.end - batch.start);
+        for (batch.start..batch.end, 0..) |idx, slot| {
+            const decl = try makePoolDeclaration(batch_arena.allocator(), seed_actor.actor, pids[idx]);
+            var head = Actor.Head.initial(try decl.digest(batch_arena.allocator()));
+            head.initialized = true;
+            keys[slot] = Actor.key(pids[idx]);
+            const raw_head = try p.Json.valueAllocBounded(batch_arena.allocator(), head, Actor.max_bytes);
+            changes[slot] = .{ .put = .{ .key = &keys[slot], .value = .{ .value = .{ .atom = .{ .bytes = raw_head } } }, .expect = .absent } };
+        }
+        const mut = try KV.prepareMutation(&batch_arena, .{
+            .definition = p.Growth.current_definition,
+            .identity = op(client, batch.op_num),
+            .target = seed_actor.actor.control.object,
+            .action = .insert,
+            .expected_definition = seed_actor.actor.control,
+            .expected_data = null,
+            .intent = undefined,
+        }, Actor.spec, changes);
+        _ = try KV.apply(&batch_arena, client, .{ .mutate = mut });
+    }
+
+    const PoolDirectory = struct {
+        template: Actor.Declaration,
+        pids: []const u64,
+        turns_handled: usize = 0,
+        fn handleActor(raw: *anyopaque, turn: *s.Turn) !void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            self.turns_handled += 1;
+            const k = try std.fmt.allocPrint(turn.allocator, "actor:{d}", .{turn.context.actor_pid});
+            try turn.put(k, turn.input);
+        }
+        fn resolve(raw: *anyopaque, alloc: std.mem.Allocator, pid: u64) !?s.Pool.Binding {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            var found = false;
+            for (self.pids) |candidate| if (candidate == pid) {
+                found = true;
+                break;
+            };
+            if (!found) return null;
+            const decl = try makePoolDeclaration(alloc, self.template, pid);
+            return .{
+                .actor = decl,
+                .activation = .{ .realm = decl.connection.scope.realm, .pid = pid, .principal = decl.connection.principal, .generation = 1, .code = decl.code, .workload = decl.workload, .input = null },
+                .handler = .{ .context = raw, .run = handleActor },
+            };
+        }
+    };
+
+    var directory: PoolDirectory = .{ .template = seed_actor.actor, .pids = &pids };
+    var pool = try s.Pool.init(init.gpa, client, pool_inbox, 300000, 16384, 4, 1, .{ .context = &directory, .resolve = PoolDirectory.resolve });
+    defer pool.deinit();
+
+    // Idle check: 1,000 durable actors hold zero resident Runners.
+    try t.expectEqual(@as(usize, 0), pool.activeCount());
+    try t.expectEqual(s.Pool.StepResult.idle, try pool.step(20));
+    try t.expectEqual(@as(usize, 0), pool.activeCount());
+
+    // Enqueue 8 messages across scattered actors in the 1,000 population.
+    for (active_indices, 0..) |actor_idx, msg_i| {
+        const msg = try std.fmt.allocPrint(output.allocator(), "payload-{d}", .{actor_idx});
+        try enqueueEnvelope(&output, client, pool_inbox, 839000 + msg_i, pids[actor_idx], .{ .kind = .cast, .payload = msg });
+    }
+
+    // Fill the 4 slots and prove the 5th claim defers until a slot frees up.
+    for (0..4) |_| try t.expect(try pool.claimIntoSlot(100));
+    try t.expectEqual(@as(usize, 4), pool.activeCount());
+    try t.expect(!(try pool.claimIntoSlot(null)));
+
+    while (pool.completed_turns < active_indices.len) {
+        _ = try pool.step(50);
+    }
+    try t.expectEqual(@as(u64, active_indices.len), pool.completed_turns);
+    try t.expectEqual(@as(usize, 4), pool.peak_active_runners);
+    try t.expectEqual(@as(usize, 0), pool.activeCount());
+    try t.expectEqual(active_indices.len, directory.turns_handled);
+
+    for (active_indices) |actor_idx| {
+        const key_name = try std.fmt.allocPrint(output.allocator(), "actor:{d}", .{pids[actor_idx]});
+        const expected_val = try std.fmt.allocPrint(output.allocator(), "payload-{d}", .{actor_idx});
+        const actual_val = (try KV.apply(&output, client, .{ .get = .{ .object = seed_actor.actor.state.object, .key = key_name } })).value.value.?.value.atom.bytes;
+        try t.expectEqualStrings(expected_val, actual_val);
+    }
+
+    pool.shutdown();
+    try t.expectEqual(@as(usize, 0), pool.activeCount());
+    try t.expectError(error.PoolStopped, pool.step(10));
+}
+
 fn caseMissingBegin(case: Case) bool {
     return case == .head;
 }
 pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, role: u64, profile: []const u8, command: []const u8) !void {
     if (std.mem.eql(u8, command, "calls")) return exerciseCalls(init, client, admin, role);
+    if (std.mem.eql(u8, command, "timers_pool")) return exerciseTimersAndPool(init, client, admin, role);
     var parts = std.mem.splitScalar(u8, command, '-');
     const phase = parts.next() orelse return error.InvalidPhase;
     const case = std.meta.stringToEnum(Case, parts.next() orelse return error.InvalidCase) orelse return error.InvalidCase;

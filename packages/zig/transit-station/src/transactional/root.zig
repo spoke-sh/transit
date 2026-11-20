@@ -6,6 +6,8 @@ pub const Envelope = @import("Envelope.zig");
 pub const Wait = @import("Wait.zig");
 pub const Timer = @import("Timer.zig");
 pub const Runner = @import("Runner.zig");
+pub const Observer = @import("Observer.zig");
+pub const Pool = @import("Pool.zig");
 
 test {
     _ = Actor;
@@ -14,5 +16,7 @@ test {
     _ = Wait;
     _ = Timer;
     _ = Runner;
+    _ = Observer;
+    _ = Pool;
     _ = @import("calls_test.zig");
 }

@@ -43646,16 +43646,112 @@
         "transit_catalog"
       ]
     },
+    "packages/zig/transit-station/src/transactional/Observer.zig": {
+      "errors": {
+        "AuthorityUnavailable": 2,
+        "InvalidAuthorityResponse": 2,
+        "InvalidQueueWait": 1,
+        "InvalidTimerObserver": 1,
+        "InvalidTimerTicket": 2,
+        "ObserverProgressUnresolved": 9,
+        "ObserverTicketUnavailable": 1,
+        "SupervisorBackoffHandlerMissing": 1,
+        "TimerNotYetDue": 1,
+        "UnexpectedObserverTicket": 1
+      },
+      "outcomes": {
+        "Point": [
+          "claimed",
+          "verified_clock",
+          "enqueued",
+          "acked"
+        ],
+        "Result": [
+          "idle",
+          "delivered",
+          "settled_obsolete"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "BackoffBuilder.build()": "anyerror",
+        "Hook.hit()": "anyerror",
+        "NativeInspector.inspectProcess()": "<inferred>",
+        "ProcessView.inspect()": "anyerror",
+        "ackTicket()": "<inferred>",
+        "applyQueue()": "<inferred>",
+        "init()": "<inferred>",
+        "point()": "<inferred>",
+        "step()": "<inferred>",
+        "ticketAckOperation()": "<inferred>",
+        "ticketDeliverOperation()": "<inferred>"
+      },
+      "open_error_set_uses": 4,
+      "propagation": {
+        "try": 37,
+        "catch": 1
+      },
+      "imports": [
+        "Actor.zig",
+        "Envelope.zig",
+        "Runner.zig",
+        "Timer.zig",
+        "std",
+        "transit_catalog"
+      ]
+    },
+    "packages/zig/transit-station/src/transactional/Pool.zig": {
+      "errors": {
+        "ActorIdentityConflict": 2,
+        "ActorInputUnavailable": 1,
+        "ActorProgressUnresolved": 5,
+        "AuthorityUnavailable": 2,
+        "InvalidActorPool": 1,
+        "InvalidQueueWait": 1,
+        "PoolStopped": 3,
+        "UnknownActorPid": 1
+      },
+      "outcomes": {
+        "StepResult": [
+          "idle",
+          "progressed",
+          "committed",
+          "blocked"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Resolver.resolve()": "anyerror",
+        "advanceSlotAt()": "<inferred>",
+        "applyQueue()": "<inferred>",
+        "claimIntoSlot()": "<inferred>",
+        "init()": "<inferred>",
+        "step()": "<inferred>",
+        "stepOneSlot()": "<inferred>"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 15,
+        "catch": 1
+      },
+      "imports": [
+        "Actor.zig",
+        "Runner.zig",
+        "std",
+        "transit_catalog"
+      ]
+    },
     "packages/zig/transit-station/src/transactional/Runner.zig": {
       "errors": {
         "ActorDependencyUnresolved": 1,
-        "ActorIdentityConflict": 11,
+        "ActorIdentityConflict": 13,
         "ActorInputUnavailable": 1,
-        "ActorNotInitialized": 1,
+        "ActorNotInitialized": 2,
         "ActorProgressConflict": 3,
         "ActorProgressUnresolved": 8,
         "ActorSavepointUnsupported": 1,
         "ActorStatementRefused": 4,
+        "AuthorityUnavailable": 8,
         "HandlerStopped": 1,
         "InvalidQueueReadRelease": 1,
         "TransactionConflict": 7,
@@ -43704,7 +43800,11 @@
         "Reader.row()": "<inferred>",
         "Reader.table()": "<inferred>",
         "abortConflict()": "<inferred>",
+        "acceptPoolInput()": "<inferred>",
         "advance()": "<inferred>",
+        "applyKV()": "<inferred>",
+        "applyQueue()": "<inferred>",
+        "applyTx()": "<inferred>",
         "bootstrap()": "<inferred>",
         "cellActor()": "<inferred>",
         "cellBytes()": "<inferred>",
@@ -43723,10 +43823,10 @@
         "retryBlocked()": "<inferred>",
         "save()": "<inferred>"
       },
-      "open_error_set_uses": 2,
+      "open_error_set_uses": 6,
       "propagation": {
-        "try": 114,
-        "catch": 8
+        "try": 120,
+        "catch": 13
       },
       "imports": [
         "Actor.zig",
@@ -43883,6 +43983,8 @@
       "imports": [
         "Actor.zig",
         "Envelope.zig",
+        "Observer.zig",
+        "Pool.zig",
         "Runner.zig",
         "Timer.zig",
         "Turn.zig",

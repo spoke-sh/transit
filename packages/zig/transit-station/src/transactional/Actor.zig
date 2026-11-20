@@ -186,7 +186,7 @@ pub const Head = struct {
             try held.source.validate();
             try held.lease.validate();
             if (held.execution_origin) |orig| try orig.validate();
-            if (self.retired or held.claim_turn == 0 or held.claim_turn >= self.next_turn or
+            if (self.retired or held.claim_turn == 0 or held.claim_turn > self.next_turn or
                 !std.meta.eql(held.source.target, actor.inbox) or !std.meta.eql(held.lease.target, actor.inbox) or
                 !std.meta.eql(held.lease.claim, held.claim.claim.operation))
                 return error.ActorIdentityConflict;
@@ -197,9 +197,13 @@ pub const Head = struct {
             if (work.execution_origin) |orig| try orig.validate();
             const execution = work.begin.execution orelse return error.ActorIdentityConflict;
             const claim = execution.input orelse return error.ActorIdentityConflict;
+            const predicate_ok = std.meta.eql(claim.predicate, @as(?p.QueuePredicate, actor.predicate)) or
+                (self.held_input != null and claim.predicate == null);
+            const lease_ok = claim.lease_ms == actor.lease_ms or
+                (self.held_input != null and claim.lease_ms == self.held_input.?.claim.claim.lease_ms);
             if (execution.realm != actor.connection.scope.realm or execution.pid != actor.pid or execution.code != actor.code or
                 !std.meta.eql(execution.workload, actor.workload) or !std.meta.eql(claim.target, actor.inbox) or
-                claim.maximum != 1 or claim.lease_ms != actor.lease_ms or !std.meta.eql(claim.predicate, @as(?p.QueuePredicate, actor.predicate)) or
+                claim.maximum != 1 or !lease_ok or !predicate_ok or
                 !std.meta.eql(work.commit.scope, actor.connection.scope) or work.commit.principal != execution.principal or work.begin.selection != .explicit_objects)
                 return error.ActorIdentityConflict;
             var expected_buf: [max_targets]p.Transaction.Target = undefined;

@@ -768,10 +768,15 @@ def run(node, caller, mode="tables", *artifacts):
             authority = start()
             if mode == "station-transaction":
                 from runtime.station.transactional import exercise
-                def actor_restart():
+                def actor_restart(maintenance=False):
                     nonlocal authority
                     authority.kill()
                     authority.wait(timeout=15)
+                    if maintenance:
+                        settings["maintenance"] = {"principal": 0, "seed_file": str(seed), "interval_ms": 200, "operation_timeout_ms": 2000}
+                    else:
+                        settings.pop("maintenance", None)
+                    config.write_text(json.dumps(settings))
                     authority = start()
                 if os.environ.get("TRANSIT_STATION_TRANSACTION_BASELINE"):
                     from performance.load.station_transaction import measure

@@ -73,9 +73,47 @@ fn reset(self: *Self) void {
 fn op(self: *Self, turn: u64, label: []const u8, ordinal: u64) d.Operation {
     return Actor.operation(self.client.connection, self.digest, turn, label, ordinal);
 }
+fn applyKV(self: *Self, output: *std.heap.ArenaAllocator, action: KV.Action) !KV.Result {
+    var last_err: anyerror = error.AuthorityUnavailable;
+    for (0..4) |_| {
+        return KV.apply(output, self.tableClient(), action) catch |err| {
+            if (err != error.AuthorityUnavailable) return err;
+            last_err = err;
+            continue;
+        };
+    }
+    return last_err;
+}
+fn applyQueue(self: *Self, output: *std.heap.ArenaAllocator, action: c.DirectQueueClient.Action) !c.DirectQueueClient.Result {
+    var last_err: anyerror = error.AuthorityUnavailable;
+    for (0..4) |_| {
+        return c.DirectQueueClient.apply(output, self.tableClient(), action) catch |err| {
+            if (err != error.AuthorityUnavailable) return err;
+            last_err = err;
+            continue;
+        };
+    }
+    return last_err;
+}
+fn applyTx(self: *Self, tx: *Transaction, action: Transaction.Action) !Transaction.Result {
+    var current = action;
+    var last_err: anyerror = error.AuthorityUnavailable;
+    for (0..4) |_| {
+        return tx.apply(self.tableClient(), current) catch |err| {
+            if (err != error.AuthorityUnavailable) return err;
+            last_err = err;
+            if (current == .begin) return err;
+            if (tx.state.hasPendingWork() or tx.state.command != null) {
+                current = .{ .advance = 64 };
+            }
+            continue;
+        };
+    }
+    return last_err;
+}
 const Loaded = struct { head: Actor.Head, revision: ?c.fuze.TableRow.Identity };
 fn load(self: *Self) !Loaded {
-    const read = (try KV.apply(&self.output, self.tableClient(), .{ .get = .{ .object = self.actor.control.object, .key = &Actor.key(self.actor.pid) } })).value;
+    const read = (try self.applyKV(&self.output, .{ .get = .{ .object = self.actor.control.object, .key = &Actor.key(self.actor.pid) } })).value;
     if (!std.meta.eql(read.interpretation.interpretation, self.actor.control) or !std.meta.eql(read.spec, Actor.spec)) return error.ActorIdentityConflict;
     const value = read.value orelse return .{ .head = Actor.Head.initial(self.digest), .revision = null };
     const bytes = try cellBytes(value);
@@ -98,7 +136,7 @@ fn save(self: *Self, loaded: *Loaded) !void {
         .expected_data = null,
         .intent = undefined,
     }, Actor.spec, &.{.{ .put = .{ .key = &Actor.key(self.actor.pid), .value = .{ .value = .{ .atom = .{ .bytes = bytes } } }, .expect = if (loaded.revision == null) .absent else .present, .expected_revision = loaded.revision } }});
-    const receipt = (try KV.apply(&self.output, self.tableClient(), .{ .mutate = mutation })).operation orelse return error.ActorProgressUnresolved;
+    const receipt = (try self.applyKV(&self.output, .{ .mutate = mutation })).operation orelse return error.ActorProgressUnresolved;
     loaded.revision = try KV.singlePutRevision(mutation, receipt);
     _ = self.scratch.reset(.retain_capacity);
 }
@@ -202,13 +240,25 @@ pub fn advance(self: *Self, handler: Handler) !Result {
     var journal: Journal = .{ .runner = self, .loaded = &loaded };
     var tx = try journal.transaction();
     defer tx.deinit();
-    _ = try tx.apply(self.tableClient(), .begin);
+    _ = tx.apply(self.tableClient(), .begin) catch |err| retry_begin: {
+        if (err != error.AuthorityUnavailable) return err;
+        var last_err: anyerror = err;
+        for (0..4) |_| {
+            _ = (c.DirectTransactionClient{ .catalog = self.tableClient() }).begin(tx.state.begin) catch |retry_err| {
+                if (retry_err != error.AuthorityUnavailable) return retry_err;
+                last_err = retry_err;
+                continue;
+            };
+            break :retry_begin;
+        }
+        return last_err;
+    };
     try self.point(.begin);
 
     if (loaded.head.held_input) |held| {
         try self.point(.claim);
         loaded.head.pending.?.claim = held.claim;
-        const page = (try c.DirectQueueClient.apply(&self.output, self.tableClient(), .{ .page = .{ .cursor = .{ .receipt = held.claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = @intCast(self.actor.limits.bytes) } } })).page;
+        const page = (try self.applyQueue(&self.output, .{ .page = .{ .cursor = .{ .receipt = held.claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = @intCast(self.actor.limits.bytes) } } })).page;
         if (page.rows.len != 1 or !page.cursor.complete() or page.rows[0].lease.liveness != .live) {
             // Held lease expired before conflict retry began; release retry state and re-claim cleanly.
             loaded.head.held_input = null;
@@ -222,7 +272,7 @@ pub fn advance(self: *Self, handler: Handler) !Result {
         loaded.head.pending.?.lease = held.lease;
         loaded.head.pending.?.input = held.input;
     } else {
-        const claim = (try c.DirectQueueClient.apply(&self.output, self.tableClient(), .{ .mutate = .{ .work = .{ .claim = execution.input.? } } })).operation orelse return error.ActorProgressUnresolved;
+        const claim = (try self.applyQueue(&self.output, .{ .mutate = .{ .work = .{ .claim = execution.input.? } } })).operation orelse return error.ActorProgressUnresolved;
         if (claim != .claim) return error.ActorIdentityConflict;
         try self.point(.claim);
         loaded.head.pending.?.claim = claim.claim;
@@ -231,7 +281,7 @@ pub fn advance(self: *Self, handler: Handler) !Result {
             try self.save(&loaded);
             return self.recover(&loaded);
         }
-        const input = (try c.DirectQueueClient.apply(&self.output, self.tableClient(), .{ .page = .{ .cursor = .{ .receipt = claim.claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = @intCast(self.actor.limits.bytes) } } })).page;
+        const input = (try self.applyQueue(&self.output, .{ .page = .{ .cursor = .{ .receipt = claim.claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = @intCast(self.actor.limits.bytes) } } })).page;
         if (input.rows.len != 1 or !input.cursor.complete() or input.rows[0].lease.liveness != .live) return error.ActorInputUnavailable;
         const row = input.rows[0];
         if (row.value.cells.len != 2 or try cellActor(row.value.cells[0]) != self.actor.pid) return error.ActorIdentityConflict;
@@ -243,7 +293,7 @@ pub fn advance(self: *Self, handler: Handler) !Result {
     loaded.head.pending.?.phase = .acquiring;
     try self.save(&loaded);
     try self.point(.input);
-    _ = try tx.apply(self.tableClient(), .acquire);
+    _ = try self.applyTx(&tx, .acquire);
     try self.point(.acquire);
     loaded.head.pending.?.phase = .dispatched;
     try self.point(.dispatch);
@@ -301,14 +351,14 @@ pub fn advance(self: *Self, handler: Handler) !Result {
         .provisional => {},
         .conflict => return self.abortConflict(&loaded, &tx),
     }
-    const status = (try tx.apply(self.tableClient(), .{ .settle = .{ .command = .commit, .steps = 64 } })).status;
+    const status = (try self.applyTx(&tx, .{ .settle = .{ .command = .commit, .steps = 64 } })).status;
     try self.point(.decision);
     if (!status.cleanup_complete) return .recovering;
     return self.finish(&loaded, status, true);
 }
 
 fn abortConflict(self: *Self, loaded: *Loaded, tx: *Transaction) !Result {
-    const status = (try tx.apply(self.tableClient(), .{ .settle = .{ .command = .abort, .steps = 64 } })).status;
+    const status = (try self.applyTx(tx, .{ .settle = .{ .command = .abort, .steps = 64 } })).status;
     try self.point(.decision);
     if (!status.cleanup_complete) return .recovering;
     return self.finish(loaded, status, true);
@@ -529,7 +579,7 @@ fn publish(self: *Self, loaded: *Loaded, tx: *Transaction) !PublishOutcome {
     var offset: usize = 0;
     while (offset < writes.len) {
         const end = @min(offset + c.DirectTransactionRequest.max_batch, writes.len);
-        const result = try tx.apply(self.tableClient(), .{ .write_batch = writes[offset..end] });
+        const result = try self.applyTx(tx, .{ .write_batch = writes[offset..end] });
         if (result == .checkpoint_failed) return result.checkpoint_failed.cause;
         if (result.batch.rejection) |rejected| {
             if (isOptimisticConflict(rejected)) return .conflict;
@@ -556,7 +606,7 @@ fn recover(self: *Self, loaded: *Loaded) !Result {
     var journal: Journal = .{ .runner = self, .loaded = loaded };
     var tx = try journal.transaction();
     defer tx.deinit();
-    const observed = (try tx.apply(self.tableClient(), .{ .recover = .{ .steps = 64, .close_input = true } })).recovered;
+    const observed = (try self.applyTx(&tx, .{ .recover = .{ .steps = 64, .close_input = true } })).recovered;
     if (observed) |recovery| {
         if (!recovery.status.cleanup_complete) return .recovering;
         return self.finish(loaded, recovery.status, false);
@@ -652,6 +702,34 @@ fn finishClaimRelease(self: *Self, loaded: *Loaded) !p.QueueRead.ReleaseReceipt 
     loaded.head.claim_release = null;
     try self.save(loaded);
     return receipt.release;
+}
+/// Attach a pre-claimed shared-inbox message from a multiplexed Pool slot.
+/// Refuses without mutating actor state if the actor is pending, blocked, retired
+/// or already holding a retry input.
+pub fn acceptPoolInput(self: *Self, claim: p.StreamQueue.ClaimReceipt, row: c.DirectQueueClient.Row) !bool {
+    self.reset();
+    var loaded = try self.load();
+    if (!loaded.head.initialized or loaded.revision == null) return error.ActorNotInitialized;
+    while (loaded.head.pending != null) {
+        const rec = try self.recover(&loaded);
+        if (rec == .recovering) return false;
+    }
+    if (loaded.head.claim_release != null) _ = try self.finishClaimRelease(&loaded);
+    if (loaded.head.blocked or loaded.head.retired or loaded.head.held_input != null) return false;
+    if (!std.meta.eql(claim.claim.target, self.actor.inbox) or claim.claim.maximum != 1 or
+        claim.claim.operation.principal != self.activation.principal) return error.ActorIdentityConflict;
+    if (row.value.cells.len != 2 or try cellActor(row.value.cells[0]) != self.actor.pid) return error.ActorIdentityConflict;
+    loaded.head.held_input = .{
+        .claim_turn = loaded.head.next_turn,
+        .claim = claim,
+        .source = .{ .target = self.actor.inbox, .operation = row.operation, .ordinal = row.ordinal },
+        .execution_origin = row.execution,
+        .lease = row.lease.original,
+        .input = try Binary.encode(self.output.allocator(), try cellBytes(row.value.cells[1])),
+    };
+    loaded.head.conflict_retries = 0;
+    try self.save(&loaded);
+    return true;
 }
 /// Explicit retry is a separate authorized decision after original settlement.
 pub fn retryBlocked(self: *Self) !void {
