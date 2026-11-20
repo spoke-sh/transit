@@ -1806,7 +1806,7 @@ test "log transaction private Queue evaluation composes enqueue and fenced ACK w
     try actions.put(.{ .statement = statement, .ordinal = 2, .action = .{ .queue_ack = .{ .operation = operation(21), .lease = lease, .action = .ack } } }, null);
     const directory = try actions.seal();
     const limits: s.LogTransaction.EvaluationLimits = .{ .actions = 20, .payload_bytes = 1024 * 1024, .resident_bytes = 16 * 1024 * 1024, .last_statement = 1 };
-    const evaluated = try owner.owner.evaluateTransaction(pin, directory, limits, null, policy.guard());
+    const evaluated = try owner.owner.evaluateTransaction(pin, directory, limits, null, null, policy.guard());
     try t.expectEqualDeep(before, owner.owner.root);
     try t.expectEqual(before.next_lsn, try wal.log().tail(91));
     try t.expectEqual(@as(u64, 6), evaluated.root.next_offset);
@@ -1820,12 +1820,12 @@ test "log transaction private Queue evaluation composes enqueue and fenced ACK w
     try t.expectEqual(.acked, try items.state(evaluated.root.queue.?, settled));
     try t.expect(try owner.operation(operation(21), policy.guard()) == null);
     clock.value = .exact(201);
-    try t.expectError(error.QueueLeaseExpired, owner.owner.evaluateTransaction(pin, directory, limits, null, policy.guard()));
+    try t.expectError(error.QueueLeaseExpired, owner.owner.evaluateTransaction(pin, directory, limits, null, null, policy.guard()));
     try t.expectEqualDeep(before, owner.owner.root);
     try t.expectEqual(before.next_lsn, try wal.log().tail(91));
     clock.value = .exact(100);
     _ = try owner.settle(initial.declared, .{ .operation = operation(22), .lease = lease, .action = .ack }, policy.guard());
-    try t.expectError(error.TransactionConflict, owner.owner.evaluateTransaction(pin, directory, limits, null, policy.guard()));
+    try t.expectError(error.TransactionConflict, owner.owner.evaluateTransaction(pin, directory, limits, null, null, policy.guard()));
 }
 
 test "log transaction terminal candidates reject standalone replay before reconstructing source state" {
@@ -1877,9 +1877,9 @@ test "log transaction terminal candidates reject standalone replay before recons
     defer actions.deinit();
     try actions.put(.{ .statement = .{ .transaction = identity, .sequence = 1, .intent = @splat(9) }, .ordinal = 1, .action = .{ .queue_terminal = transfer } }, null);
     const directory = try actions.seal();
-    const candidate = try owner.owner.evaluateTransaction(pin, directory, .{ .actions = 20, .payload_bytes = 1024 * 1024, .resident_bytes = 16 * 1024 * 1024, .last_statement = 1 }, null, policy.guard());
+    const candidate = try owner.owner.evaluateTransaction(pin, directory, .{ .actions = 20, .payload_bytes = 1024 * 1024, .resident_bytes = 16 * 1024 * 1024, .last_statement = 1 }, null, null, policy.guard());
     try t.expectEqualDeep(before, owner.owner.root);
-    const record: s.LogPartitionRecord.Record = .{ .definition = p.Growth.current_definition, .previous = owner.owner.commitment, .root = candidate.root, .action = .{ .operation = .{ .declared = initial.declared, .outcome = .{ .terminal = .{ .receipt = .{ .transfer = transfer, .accepted = candidate.root.position() }, .observed = clock.value.? } } } } };
+    const record: s.LogPartitionRecord.Record = .{ .definition = p.Growth.current_definition, .previous = owner.owner.commitment, .root = candidate.root, .action = .{ .operation = .{ .declared = initial.declared, .execution = null, .outcome = .{ .terminal = .{ .receipt = .{ .transfer = transfer, .accepted = candidate.root.position() }, .observed = clock.value.? } } } } };
     try record.validate(before.next_lsn);
     var encoded: [65536]u8 = undefined;
     _ = try wal.log().append(91, before.next_lsn, 1, 1, record.frameKind(), try s.LogPartitionRecord.encode(record, &.{}, &encoded));

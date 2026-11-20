@@ -157,10 +157,10 @@ pub fn validatePayload(self: *Self, work: c.DirectTransactionLogWork.Work, paylo
         },
     };
 }
-pub fn evaluate(self: *Self, handle: x.Pin, actions: x.Directory, limits: s.LogTransaction.EvaluationLimits, authority: ?s.LogRead.Authority, guard_value: s.PublicationGuard) !s.LogTransaction.Evaluation {
+pub fn evaluate(self: *Self, handle: x.Pin, actions: x.Directory, limits: s.LogTransaction.EvaluationLimits, execution: ?x.Origin, authority: ?s.LogRead.Authority, guard_value: s.PublicationGuard) !s.LogTransaction.Evaluation {
     return switch (self.owner) {
-        .stream => |*owner| owner.evaluateTransaction(handle, actions, limits, authority, guard_value),
-        .queue => |*owner| owner.evaluateTransaction(handle, actions, limits, guard_value),
+        .stream => |*owner| owner.evaluateTransaction(handle, actions, limits, execution, authority, guard_value),
+        .queue => |*owner| owner.evaluateTransaction(handle, actions, limits, execution, guard_value),
     };
 }
 pub fn validateTransferPayload(self: *Self, request: x.TerminalTransfer, guard_value: s.PublicationGuard) !void {

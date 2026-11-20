@@ -101,6 +101,7 @@ pub const Receipt = union(enum) {
 pub const Row = struct {
     offset: u64,
     operation: d.Operation,
+    execution: ?p.Transaction.Origin,
     ordinal: u32,
     tombstone: bool,
     encoded: w.Binary,
@@ -328,6 +329,7 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
                 row.* = .{
                     .offset = source.offset,
                     .operation = source.operation,
+                    .execution = source.execution,
                     .ordinal = source.encoded.ordinal,
                     .tombstone = source.encoded.tombstone,
                     .encoded = try w.Binary.encode(output, source.encoded.bytes),

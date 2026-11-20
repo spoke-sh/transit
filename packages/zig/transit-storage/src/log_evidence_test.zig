@@ -15,7 +15,7 @@ test "log evidence retains original receipt and declaration across disk reopen" 
     const declared = try s.LogDeclaration.stage(objects.objectStore(), &declaration);
     const target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = declared.declaration.interpretation, .partition = 1 };
     const operation: p.DataLifecycle.Operation = .{ .scope = target.interpretation.object.scope, .principal = 0, .operation = std.math.maxInt(u64) };
-    const record: E.Record = .{ .declared = declared, .outcome = .{ .append = .{
+    const record: E.Record = .{ .declared = declared, .execution = null, .outcome = .{ .append = .{
         .append = .{ .target = target, .operation = operation, .kind = .stream, .producer = .{ .id = @splat(9), .epoch = 1, .sequence = 1 }, .rows = 2, .payload = .{ .bytes = 1024, .sha256 = @splat(29) } },
         .first = std.math.maxInt(u64) - 2,
         .next = std.math.maxInt(u64),
@@ -25,6 +25,16 @@ test "log evidence retains original receipt and declaration across disk reopen" 
     const reference = try E.stage(objects.objectStore(), record);
     try t.expectEqualDeep(try E.expectedReference(record), reference);
     try t.expectEqualDeep(operation, record.operation());
+    var attributed = record;
+    attributed.execution = .{ .realm = operation.scope.realm, .pid = 17, .principal = operation.principal, .generation = 3, .code = 2, .workload = null, .transaction = .{ .scope = operation.scope, .principal = operation.principal, .operation = 99 } };
+    const attributed_ref = try E.stage(objects.objectStore(), attributed);
+    try t.expectEqualDeep(attributed, try E.load(t.allocator, objects.objectStore(), attributed_ref));
+    var mismatched = attributed;
+    mismatched.execution.?.principal = 1;
+    try t.expectError(error.InvalidLogEvidence, E.stage(objects.objectStore(), mismatched));
+    mismatched = attributed;
+    mismatched.execution.?.transaction = operation;
+    try t.expectError(error.InvalidLogEvidence, E.stage(objects.objectStore(), mismatched));
     objects.deinit();
     objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, directory.dir, "objects");
     try t.expectEqualDeep(record, try E.load(t.allocator, objects.objectStore(), reference));

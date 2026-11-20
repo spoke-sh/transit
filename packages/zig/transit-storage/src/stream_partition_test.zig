@@ -429,7 +429,7 @@ test "stream partition missing published evidence blocks recovery without resett
     var buffer: [8192]u8 = undefined;
     const request = try appendRequest(&declaration, 2, null, &buffer);
     const receipt = try owner.append(initial.declared, request.request, request.payload, policy.guard());
-    const evidence: s.LogEvidence.Record = .{ .declared = initial.declared, .outcome = .{ .append = receipt } };
+    const evidence: s.LogEvidence.Record = .{ .declared = initial.declared, .execution = null, .outcome = .{ .append = receipt } };
     const reference = try s.LogEvidence.expectedReference(evidence);
     const content = try s.LogEvidence.decodeReference(reference);
     var name: [96]u8 = undefined;
@@ -1887,7 +1887,7 @@ test "log transaction private evaluation seals several append batches without pu
     const directory = try actions.seal();
     const before = owner.root;
     const limits: s.LogTransaction.EvaluationLimits = .{ .actions = 20, .payload_bytes = 1024 * 1024, .resident_bytes = 16 * 1024 * 1024, .last_statement = 1 };
-    const evaluated = try owner.evaluateTransaction(pin, directory, limits, null, policy.guard());
+    const evaluated = try owner.evaluateTransaction(pin, directory, limits, null, null, policy.guard());
     try t.expectEqualDeep(before, owner.root);
     try t.expectEqual(before.next_lsn, try wal.log().tail(91));
     try t.expectEqual(@as(u64, 8), evaluated.root.next_offset);
@@ -1896,7 +1896,7 @@ test "log transaction private evaluation seals several append batches without pu
     try t.expectEqual(@as(u64, 0), evaluated.root.sealed_through);
     try t.expect(evaluated.root.segments != null);
     try t.expect(evaluated.resident_peak != 0 and evaluated.resident_peak <= limits.resident_bytes);
-    try t.expectEqualDeep(evaluated.root, (try owner.evaluateTransaction(pin, directory, limits, null, policy.guard())).root);
+    try t.expectEqualDeep(evaluated.root, (try owner.evaluateTransaction(pin, directory, limits, null, null, policy.guard())).root);
     const fixtures = @import("transaction_test_support.zig");
     var selected = try s.TransactionDirectory.init(t.allocator, objects.objectStore(), identity, .participants, 10, 1, 1024 * 1024);
     defer selected.deinit();
@@ -1941,10 +1941,10 @@ test "log transaction private evaluation seals several append batches without pu
     }
     var small = limits;
     small.resident_bytes = 4096;
-    try t.expectError(error.TransactionMemoryLimit, owner.evaluateTransaction(pin, directory, small, null, policy.guard()));
+    try t.expectError(error.TransactionMemoryLimit, owner.evaluateTransaction(pin, directory, small, null, null, policy.guard()));
     try t.expectEqualDeep(before, owner.root);
     policy.deny_at = policy.calls + 6;
-    try t.expectError(error.PermissionDenied, owner.evaluateTransaction(pin, directory, limits, null, policy.guard()));
+    try t.expectError(error.PermissionDenied, owner.evaluateTransaction(pin, directory, limits, null, null, policy.guard()));
     try t.expectEqualDeep(before, owner.root);
     try t.expectEqual(before.next_lsn, try wal.log().tail(91));
 }

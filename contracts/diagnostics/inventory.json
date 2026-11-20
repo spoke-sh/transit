@@ -5600,7 +5600,7 @@
       },
       "open_error_set_uses": 15,
       "propagation": {
-        "try": 3111,
+        "try": 3112,
         "catch": 39
       },
       "imports": [
@@ -22049,7 +22049,7 @@
           "deadline"
         ],
         "Definition": [
-          "f311e893f8d2f4c21f426790172fadfebe7eb2364615eb1566c09f11d39bb0bb"
+          "@\"7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5\""
         ],
         "Effect.phase": [
           "pending",
@@ -23356,7 +23356,7 @@
         "InvalidTransactionTransfer": 7,
         "ReadOnlyTransaction": 2,
         "TransactionConflict": 3,
-        "TransactionIdentityConflict": 10,
+        "TransactionIdentityConflict": 11,
         "UnsupportedTransactionDomain": 1,
         "UnsupportedTransactionParticipant": 5
       },
@@ -23437,6 +23437,7 @@
       "error_returns": {
         "Attempt.requireSame()": "<inferred>",
         "Attempt.validate()": "<inferred>",
+        "Begin.origin()": "<inferred>",
         "Begin.requireSame()": "<inferred>",
         "Begin.validate()": "<inferred>",
         "Cut.validate()": "<inferred>",
@@ -23459,6 +23460,7 @@
         "LogGuard.requireUnchanged()": "<inferred>",
         "LogGuard.validate()": "<inferred>",
         "Observation.validate()": "<inferred>",
+        "Origin.validate()": "<inferred>",
         "Participant.requireLocalState()": "<inferred>",
         "Participant.requireLocalTable()": "<inferred>",
         "Participant.validate()": "<inferred>",
@@ -23475,7 +23477,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 92,
+        "try": 96,
         "catch": 0
       },
       "imports": [
@@ -45026,7 +45028,7 @@
     "packages/zig/transit-storage/src/LogEvidence.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidLogEvidence": 18,
+        "InvalidLogEvidence": 21,
         "LogEvidenceMissing": 1,
         "LogEvidenceTooLarge": 1,
         "LogOperationConflict": 1
@@ -45062,7 +45064,7 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 31,
-        "catch": 0
+        "catch": 1
       },
       "imports": [
         "LogDeclaration.zig",
@@ -45147,9 +45149,10 @@
         "CandidateObjectBudgetExceeded": 4,
         "InvalidLogArchive": 3,
         "InvalidLogBatch": 2,
+        "InvalidLogEvidence": 3,
         "InvalidLogExpiration": 14,
         "InvalidLogGroup": 1,
-        "InvalidLogHistory": 44,
+        "InvalidLogHistory": 45,
         "InvalidLogPreparation": 16,
         "InvalidLogRecovery": 4,
         "InvalidLogRecoveryBudget": 1,
@@ -45226,7 +45229,7 @@
         "StreamReadMissing": 2,
         "StreamReadReleased": 1,
         "TransactionConflict": 1,
-        "TransactionIdentityConflict": 3,
+        "TransactionIdentityConflict": 4,
         "TransactionMemoryLimit": 2,
         "TransactionNotFrozen": 2,
         "TransactionObjectNotSelected": 1,
@@ -45387,7 +45390,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 948,
+        "try": 950,
         "catch": 27
       },
       "imports": [
