@@ -318,10 +318,287 @@ fn measure(init: std.process.Init, client: c.DirectTableClient, saved: Saved) !v
     }
     try emit(init, out, .{ .event = "complete", .definition = p.Growth.current_definition, .turns = 23, .build_mode = @import("builtin").mode });
 }
+fn createActor(init: std.process.Init, client: c.DirectTableClient, output: *std.heap.ArenaAllocator, admin: anytype, role: u64, worker_principal: u64, base: u64, label: []const u8, inbox: p.StreamQueue.Partition, mailboxes: []const p.StreamQueue.Partition) !struct { pid: u64, actor: Actor.Declaration, activation: p.Transaction.Execution } {
+    const allocator = output.allocator();
+    const pid = try admin.submit(.{ .spawn = .{} });
+    _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .process, .id = pid }, .grantee = role, .privileges = p.permission(.execute) | p.permission(.inspect) } });
+    _ = try admin.submit(.{ .own = .{ .pid = pid, .expected_generation = 0, .worker = worker_principal } });
+    var actor_conn = client.connection;
+    actor_conn.principal = worker_principal;
+    const activation: p.Transaction.Execution = .{ .realm = client.connection.scope.realm, .pid = pid, .principal = worker_principal, .generation = 1, .code = 1, .workload = null, .input = null };
+    const table_name = try std.fmt.allocPrint(allocator, "actor_rows_{s}", .{label});
+    const sql = try std.fmt.allocPrint(allocator, "CREATE TABLE {s} (id BIGINT PRIMARY KEY)", .{table_name});
+    var ddl = try c.DirectTablePreparedDdl.prepare(init.gpa, client, 1, sql, .transit, null);
+    defer ddl.deinit();
+    var table = try ddl.bind(init.gpa, client, base + 100, base);
+    defer table.deinit();
+    (try table.table.admit(client)).deinit();
+    const created = try table.table.operation(client, .execute, 64);
+    defer created.deinit();
+    try t.expect(created.value.result.ddl == .committed);
+    const control = try createKV(init, client, output, role, base + 1, try std.fmt.allocPrint(allocator, "actor_control_{s}", .{label}));
+    const state = try createKV(init, client, output, role, base + 2, try std.fmt.allocPrint(allocator, "actor_state_{s}", .{label}));
+    const journal = try createLog(init, client, output, role, base + 4, try std.fmt.allocPrint(allocator, "actor_journal_{s}", .{label}), .stream);
+    const outbox = try createLog(init, client, output, role, base + 5, try std.fmt.allocPrint(allocator, "actor_outbox_{s}", .{label}), .queue);
+    const fields = [_]c.fuze.WorkloadProjection.Field{ .{ .column = 1 }, .{ .column = 2 } };
+    const layout = try c.fuze.WorkloadProjection.schemaLayout(Runner.logSchema(inbox.interpretation.object.object), &fields, .claim);
+    const predicate = try c.fuze.QueuePredicate.encode(allocator, inbox, Runner.logSchema(inbox.interpretation.object.object), &fields, .{ .schema = layout.typeOf(), .source_basis = @splat(0), .collations = layout.collations, .projection = &.{0}, .predicate = .{ .compare = .{ .column = 0, .op = .eq, .value = .{ .signed = @intCast(pid) } } } });
+    const actor: Actor.Declaration = .{
+        .definition = p.Growth.current_definition,
+        .connection = actor_conn,
+        .namespace = 1,
+        .pid = pid,
+        .code = 1,
+        .workload = null,
+        .behavior = @splat(62),
+        .control = control,
+        .state = state,
+        .table = created.value.result.ddl.committed.resulting.interpretation,
+        .table_name = try .init(table_name),
+        .inbox = inbox,
+        .journal = journal,
+        .outbox = outbox,
+        .predicate = predicate,
+        .lease_ms = 300000,
+        .limits = .{},
+        .transaction = c.DirectTransaction.default_limits,
+        .protocol = .envelope,
+        .mailboxes = mailboxes,
+    };
+    return .{ .pid = pid, .actor = actor, .activation = activation };
+}
+
+fn enqueueEnvelope(output: *std.heap.ArenaAllocator, client: c.DirectTableClient, target: p.StreamQueue.Partition, op_id: u64, pid: u64, env: s.Envelope) !void {
+    const raw = try env.encodeAlloc(output.allocator());
+    const identity = op(client, op_id);
+    const cells = [_]c.fuze.Types.Values.Cell{ .{ .value = .{ .atom = .{ .signed = @intCast(pid) } } }, .{ .value = .{ .atom = .{ .bytes = raw } } } };
+    var buffer: [8192]u8 = undefined;
+    const payload = try c.storage.LogBatch.encode(Runner.logSchema(target.interpretation.object.object), identity, .queue, &.{.{ .cells = &cells }}, &buffer);
+    const enqueue: p.StreamQueue.Append = .{ .target = target, .operation = identity, .kind = .queue, .producer = null, .rows = 1, .payload = c.storage.LogBatch.content(payload) };
+    _ = try Queue.apply(output, client, .{ .mutate = .{ .work = .{ .enqueue = enqueue }, .payload = payload } });
+}
+
+fn settleHeadFor(output: *std.heap.ArenaAllocator, client: c.DirectTableClient, actor: Actor.Declaration, failure_turn: u64, op_id: u64) !void {
+    const digest = try actor.digest(output.allocator());
+    const claim: p.StreamQueue.Claim = .{ .target = actor.inbox, .operation = Actor.operation(actor.connection, digest, failure_turn, "claim", 0), .maximum = 1, .lease_ms = actor.lease_ms, .predicate = actor.predicate };
+    const accepted = (try Queue.apply(output, client, .{ .operation = .{ .claim = claim } })).operation.?.claim;
+    try t.expectEqual(@as(u32, 1), accepted.rows);
+    const page = (try Queue.apply(output, client, .{ .page = .{ .cursor = .{ .receipt = accepted, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } })).page;
+    _ = try Queue.apply(output, client, .{ .mutate = .{ .work = .{ .settle = .{ .operation = op(client, op_id), .lease = page.rows[0].lease.original, .action = .ack } } } });
+}
+
+fn advanceComplete(runner: *Runner, handler: Runner.Handler) !Runner.Result {
+    var result = try runner.advance(handler);
+    for (0..16) |_| {
+        if (result != .recovering) break;
+        result = try runner.advance(handler);
+    }
+    return result;
+}
+
+fn exerciseCalls(init: std.process.Init, client: c.DirectTableClient, admin: anytype, role: u64) !void {
+    (try client.call(.initialize)).deinit();
+    var output: std.heap.ArenaAllocator = .init(init.gpa);
+    defer output.deinit();
+
+    const key_1202 = try p.Ed25519.KeyPair.generateDeterministic(@splat(122));
+    _ = try admin.change(.{ .bind_credential = .{ .principal = 1202, .role = role, .public_key = key_1202.public_key.toBytes() } });
+    var client_1202 = client;
+    client_1202.connection.principal = 1202;
+    client_1202.key = key_1202;
+
+    const shared_inbox = try createLog(init, client, &output, role, 810001, "calls_shared_inbox", .queue);
+    const peer_inbox = try createLog(init, client, &output, role, 810002, "calls_peer_inbox", .queue);
+
+    const caller_spec = try createActor(init, client, &output, admin, role, 101, 811000, "caller_a", shared_inbox, &.{peer_inbox});
+    const callee_spec = try createActor(init, client, &output, admin, role, 1202, 812000, "callee_b", peer_inbox, &.{shared_inbox});
+    // Spoofer C shares worker principal 1202 with Callee B, but owns a distinct PID.
+    const spoofer_spec = try createActor(init, client, &output, admin, role, 1202, 813000, "spoofer_c", shared_inbox, &.{shared_inbox});
+
+    var caller_runner = try Runner.init(init.gpa, client, caller_spec.actor, caller_spec.activation);
+    defer caller_runner.deinit();
+    try caller_runner.bootstrap();
+
+    var callee_runner = try Runner.init(init.gpa, client_1202, callee_spec.actor, callee_spec.activation);
+    defer callee_runner.deinit();
+    try callee_runner.bootstrap();
+
+    var spoofer_runner = try Runner.init(init.gpa, client_1202, spoofer_spec.actor, spoofer_spec.activation);
+    defer spoofer_runner.deinit();
+    try spoofer_runner.bootstrap();
+
+    const CallerState = struct {
+        peer_inbox: p.StreamQueue.Partition,
+        callee_pid: u64,
+        corr1: u64 = 0,
+        corr2: u64 = 0,
+        replies_seen: usize = 0,
+        fn handle(raw: *anyopaque, turn: *s.Turn) !void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            const env = turn.context.envelope.?;
+            switch (env.kind) {
+                .cast => {
+                    if (std.mem.eql(u8, turn.input, "start")) {
+                        self.corr1 = try turn.call(self.peer_inbox, self.callee_pid, "compute:21");
+                        try turn.put("status", "waiting-1");
+                    } else if (std.mem.eql(u8, turn.input, "start-cancel")) {
+                        self.corr2 = try turn.call(self.peer_inbox, self.callee_pid, "slow-op");
+                    } else if (std.mem.eql(u8, turn.input, "do-cancel")) {
+                        try turn.cancelWait(self.corr2);
+                        try turn.put("status", "cancelled-2");
+                    }
+                },
+                .reply => {
+                    self.replies_seen += 1;
+                    try turn.put("answer", turn.input);
+                    try turn.put("status", "replied-1");
+                },
+                else => return error.UnexpectedEnvelopeKind,
+            }
+        }
+    };
+
+    const CalleeState = struct {
+        return_inbox: p.StreamQueue.Partition,
+        caller_pid: u64,
+        calls_seen: usize = 0,
+        cancels_seen: usize = 0,
+        send_duplicate: bool = true,
+        fn handle(raw: *anyopaque, turn: *s.Turn) !void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            const env = turn.context.envelope.?;
+            switch (env.kind) {
+                .call => {
+                    try t.expectEqual(self.caller_pid, turn.context.origin.?.actor.pid);
+                    self.calls_seen += 1;
+                    try turn.put("last_request", turn.input);
+                    try turn.reply(self.return_inbox, "42");
+                    if (self.send_duplicate) {
+                        self.send_duplicate = false;
+                        try turn.sendEnvelope(self.return_inbox, self.caller_pid, .{ .kind = .reply, .correlation = env.correlation, .payload = "duplicate-99" });
+                    }
+                },
+                .cancel => {
+                    try t.expectEqual(self.caller_pid, turn.context.origin.?.actor.pid);
+                    self.cancels_seen += 1;
+                },
+                else => return error.UnexpectedEnvelopeKind,
+            }
+        }
+    };
+
+    var caller_state: CallerState = .{ .peer_inbox = peer_inbox, .callee_pid = callee_spec.pid };
+    var callee_state: CalleeState = .{ .return_inbox = shared_inbox, .caller_pid = caller_spec.pid };
+
+    // 1. Concurrent enqueue mid-turn triggers optimistic TransactionConflict retry without blocking
+    //    (both during statement evaluation at .acquire and during commit preparation at .executed).
+    try enqueueEnvelope(&output, client, shared_inbox, 820001, caller_spec.pid, .{ .kind = .cast, .payload = "start" });
+    const ConflictInjector = struct {
+        alloc_arena: *std.heap.ArenaAllocator,
+        caller: c.DirectTableClient,
+        inbox: p.StreamQueue.Partition,
+        spoofer_pid: u64,
+        target_point: Runner.Point,
+        op_id: u64,
+        injected: bool = false,
+        fn hit(raw: *anyopaque, pt: Runner.Point) !void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            if (pt != self.target_point or self.injected) return;
+            self.injected = true;
+            try enqueueEnvelope(self.alloc_arena, self.caller, self.inbox, self.op_id, self.spoofer_pid, .{ .kind = .cast, .payload = "spoof" });
+        }
+    };
+    var injector_acquire: ConflictInjector = .{ .alloc_arena = &output, .caller = client, .inbox = shared_inbox, .spoofer_pid = spoofer_spec.pid, .target_point = .acquire, .op_id = 820002 };
+    caller_runner.hook = .{ .context = &injector_acquire, .hit = ConflictInjector.hit };
+    const first_step = try caller_runner.advance(.{ .context = &caller_state, .run = CallerState.handle });
+    caller_runner.hook = null;
+    try t.expect(injector_acquire.injected);
+    try t.expectEqual(Runner.Result.recovering, first_step);
+    try t.expectEqual(@as(u8, 1), (try caller_runner.inspect()).conflict_retries);
+    try t.expect(!(try caller_runner.inspect()).blocked);
+
+    var injector_commit: ConflictInjector = .{ .alloc_arena = &output, .caller = client, .inbox = shared_inbox, .spoofer_pid = spoofer_spec.pid, .target_point = .executed, .op_id = 820009 };
+    caller_runner.hook = .{ .context = &injector_commit, .hit = ConflictInjector.hit };
+    const second_step = try caller_runner.advance(.{ .context = &caller_state, .run = CallerState.handle });
+    caller_runner.hook = null;
+    try t.expect(injector_commit.injected);
+    try t.expectEqual(Runner.Result.recovering, second_step);
+    try t.expectEqual(@as(u8, 2), (try caller_runner.inspect()).conflict_retries);
+    try t.expect(!(try caller_runner.inspect()).blocked);
+
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&caller_runner, .{ .context = &caller_state, .run = CallerState.handle }));
+    try t.expectEqual(@as(u8, 0), (try caller_runner.inspect()).conflict_retries);
+    try t.expect(caller_state.corr1 != 0);
+
+    // 2. Direct Queue.enqueue forging a reply (execution == null) is rejected before handler execution.
+    try enqueueEnvelope(&output, client, shared_inbox, 820003, caller_spec.pid, .{ .kind = .reply, .correlation = caller_state.corr1, .payload = "forged-direct" });
+    try t.expectError(error.HandlerStopped, caller_runner.advance(.{ .context = &caller_state, .run = CallerState.handle, .failure = .stop }));
+    try t.expectEqual(@as(usize, 0), caller_state.replies_seen);
+    _ = try advanceComplete(&caller_runner, .{ .context = &caller_state, .run = CallerState.handle, .failure = .block_input });
+    const blocked_1 = try caller_runner.inspect();
+    try t.expect(blocked_1.blocked);
+    try settleHeadFor(&output, client, caller_spec.actor, blocked_1.failure, 820010);
+    try caller_runner.retryBlocked();
+
+    // 3. Same-principal cross-PID spoofing (Spoofer C replying under principal 1202 for Callee B) is rejected.
+    const SpoofBody = struct {
+        inbox: p.StreamQueue.Partition,
+        victim_pid: u64,
+        corr: u64,
+        fn handle(raw: *anyopaque, turn: *s.Turn) !void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            try turn.sendEnvelope(self.inbox, self.victim_pid, .{ .kind = .reply, .correlation = self.corr, .payload = "forged-cross-pid" });
+        }
+    };
+    var spoof_body: SpoofBody = .{ .inbox = shared_inbox, .victim_pid = caller_spec.pid, .corr = caller_state.corr1 };
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&spoofer_runner, .{ .context = &spoof_body, .run = SpoofBody.handle }));
+    try t.expectError(error.HandlerStopped, caller_runner.advance(.{ .context = &caller_state, .run = CallerState.handle, .failure = .stop }));
+    try t.expectEqual(@as(usize, 0), caller_state.replies_seen);
+    _ = try advanceComplete(&caller_runner, .{ .context = &caller_state, .run = CallerState.handle, .failure = .block_input });
+    const blocked_2 = try caller_runner.inspect();
+    try t.expect(blocked_2.blocked);
+    try settleHeadFor(&output, client, caller_spec.actor, blocked_2.failure, 820020);
+    try caller_runner.retryBlocked();
+
+    // 4. Legitimate Callee B processes call, sends reply + duplicate; Caller A runs once and absorbs duplicate as closed.
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&callee_runner, .{ .context = &callee_state, .run = CalleeState.handle }));
+    try t.expectEqual(@as(usize, 1), callee_state.calls_seen);
+
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&caller_runner, .{ .context = &caller_state, .run = CallerState.handle }));
+    try t.expectEqual(@as(usize, 1), caller_state.replies_seen);
+    try t.expectEqualStrings("42", (try KV.apply(&output, client, .{ .get = .{ .object = caller_spec.actor.state.object, .key = "answer" } })).value.value.?.value.atom.bytes);
+
+    // Second (duplicate) reply commits as closed disposition without re-invoking CallerState.handle.
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&caller_runner, .{ .context = &caller_state, .run = CallerState.handle }));
+    try t.expectEqual(@as(usize, 1), caller_state.replies_seen);
+    try t.expectEqualStrings("42", (try KV.apply(&output, client, .{ .get = .{ .object = caller_spec.actor.state.object, .key = "answer" } })).value.value.?.value.atom.bytes);
+    try t.expectEqualStrings(s.Wait.closed_reply_disposition, (try KV.apply(&output, client, .{ .get = .{ .object = caller_spec.actor.state.object, .key = s.Wait.disposition_key } })).value.value.?.value.atom.bytes);
+
+    // 5. Explicit cancelWait closes the wait, delivers advisory cancel, and absorbs late callee reply.
+    try enqueueEnvelope(&output, client, shared_inbox, 820030, caller_spec.pid, .{ .kind = .cast, .payload = "start-cancel" });
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&caller_runner, .{ .context = &caller_state, .run = CallerState.handle }));
+    try t.expect(caller_state.corr2 != 0);
+
+    try enqueueEnvelope(&output, client, shared_inbox, 820031, caller_spec.pid, .{ .kind = .cast, .payload = "do-cancel" });
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&caller_runner, .{ .context = &caller_state, .run = CallerState.handle }));
+
+    // Callee B processes both the original call (emitting a now-late reply) and the advisory cancel.
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&callee_runner, .{ .context = &callee_state, .run = CalleeState.handle }));
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&callee_runner, .{ .context = &callee_state, .run = CalleeState.handle }));
+    try t.expectEqual(@as(usize, 2), callee_state.calls_seen);
+    try t.expectEqual(@as(usize, 1), callee_state.cancels_seen);
+
+    // Caller A absorbs the late reply after cancellation without invoking CallerState.handle.
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&caller_runner, .{ .context = &caller_state, .run = CallerState.handle }));
+    try t.expectEqual(@as(usize, 1), caller_state.replies_seen);
+    try t.expectEqualStrings("cancelled-2", (try KV.apply(&output, client, .{ .get = .{ .object = caller_spec.actor.state.object, .key = "status" } })).value.value.?.value.atom.bytes);
+}
+
 fn caseMissingBegin(case: Case) bool {
     return case == .head;
 }
 pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, role: u64, profile: []const u8, command: []const u8) !void {
+    if (std.mem.eql(u8, command, "calls")) return exerciseCalls(init, client, admin, role);
     var parts = std.mem.splitScalar(u8, command, '-');
     const phase = parts.next() orelse return error.InvalidPhase;
     const case = std.meta.stringToEnum(Case, parts.next() orelse return error.InvalidCase) orelse return error.InvalidCase;

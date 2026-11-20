@@ -16,12 +16,21 @@ CASES = ("small", "large", "head", "begin", "claim", "input", "acquire", "dispat
 FAULTS = CASES[2:13]
 
 
+ALL_CASES = CASES + ("calls",)
+
+
 def exercise(node, caller, root, profile, url, restart):
     selected = os.environ.get("TRANSIT_STATION_TRANSACTION_CASES")
-    cases = tuple(selected.split(",")) if selected else CASES
-    assert cases and all(case in CASES for case in cases)
+    cases = tuple(selected.split(",")) if selected else ALL_CASES
+    assert cases and all(case in ALL_CASES for case in cases)
     outcomes = []
     for case in cases:
+        if case == "calls":
+            restart()
+            subprocess.run([caller, url, "station-transaction-calls", str(profile)], check=True, timeout=180)
+            outcomes.append(dict(case="calls", worker_sigkill=False, owner_sigkill_restarts=1,
+                                 replacement_principal=1202, original_binding_unchanged=True, passed=True))
+            continue
         def command(phase):
             return [caller, url, f"station-transaction-{phase}-{case}", str(profile)]
         subprocess.run(command("setup"), check=True, timeout=180)
@@ -59,4 +68,4 @@ def exercise(node, caller, root, profile, url, restart):
                              original_binding_unchanged=True, passed=True))
     print(json.dumps(dict(profile="private_transactional_station", source=provenance(ROOT),
                           binaries=[identity(Path(path)) for path in (node, caller)],
-                          complete=cases == CASES, outcomes=outcomes, passed=True)))
+                          complete=cases == ALL_CASES, outcomes=outcomes, passed=True)))

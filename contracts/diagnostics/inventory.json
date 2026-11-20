@@ -43564,9 +43564,9 @@
     },
     "packages/zig/transit-station/src/transactional/Actor.zig": {
       "errors": {
-        "ActorIdentityConflict": 16,
+        "ActorIdentityConflict": 18,
         "IncompatibleDefinition": 2,
-        "InvalidActorDeclaration": 3,
+        "InvalidActorDeclaration": 4,
         "TurnCapacity": 1
       },
       "outcomes": {
@@ -43580,7 +43580,12 @@
           "staging",
           "executing",
           "committing",
+          "aborting",
           "recovering"
+        ],
+        "Protocol": [
+          "raw_cast",
+          "envelope"
         ]
       },
       "error_sets": {},
@@ -43591,11 +43596,52 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 22,
+        "try": 31,
         "catch": 1
       },
       "imports": [
         "Turn.zig",
+        "std",
+        "transit_catalog"
+      ]
+    },
+    "packages/zig/transit-station/src/transactional/Envelope.zig": {
+      "errors": {
+        "EnvelopeTooLarge": 2,
+        "InvalidCorrelation": 1,
+        "InvalidObserverOrigin": 1,
+        "InvalidStationEnvelope": 2,
+        "InvalidStationOrigin": 2,
+        "UnauthenticatedActorOrigin": 1
+      },
+      "outcomes": {
+        "Kind": [
+          "cast",
+          "call",
+          "reply",
+          "cancel",
+          "timeout"
+        ],
+        "Origin": [
+          "external",
+          "actor",
+          "observer"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Origin.validate()": "<inferred>",
+        "decode()": "<inferred>",
+        "encodeAlloc()": "<inferred>",
+        "validate()": "<inferred>",
+        "verifyOrigin()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 7,
+        "catch": 0
+      },
+      "imports": [
         "std",
         "transit_catalog"
       ]
@@ -43609,10 +43655,14 @@
         "ActorProgressConflict": 3,
         "ActorProgressUnresolved": 8,
         "ActorSavepointUnsupported": 1,
-        "ActorStatementRefused": 2,
-        "HandlerStopped": 2,
+        "ActorStatementRefused": 4,
+        "HandlerStopped": 1,
         "InvalidQueueReadRelease": 1,
-        "TurnCapacity": 2
+        "TransactionConflict": 7,
+        "TurnCapacity": 2,
+        "UnexpectedReplySource": 1,
+        "UnexpectedTimeoutSource": 1,
+        "UnknownCorrelation": 2
       },
       "outcomes": {
         "Handler.failure": [
@@ -43633,6 +43683,10 @@
           "decision",
           "cleared"
         ],
+        "PublishOutcome": [
+          "provisional",
+          "conflict"
+        ],
         "Result": [
           "idle",
           "committed",
@@ -43649,10 +43703,12 @@
         "Reader.get()": "<inferred>",
         "Reader.row()": "<inferred>",
         "Reader.table()": "<inferred>",
+        "abortConflict()": "<inferred>",
         "advance()": "<inferred>",
         "bootstrap()": "<inferred>",
         "cellActor()": "<inferred>",
         "cellBytes()": "<inferred>",
+        "failHandler()": "<inferred>",
         "finish()": "<inferred>",
         "finishClaimRelease()": "<inferred>",
         "init()": "<inferred>",
@@ -43660,34 +43716,80 @@
         "load()": "<inferred>",
         "point()": "<inferred>",
         "prepareAppend()": "<inferred>",
+        "preprocessTurn()": "<inferred>",
         "publish()": "<inferred>",
         "recover()": "<inferred>",
         "releaseClaimRead()": "<inferred>",
-        "requireBatch()": "<inferred>",
-        "requireStatement()": "<inferred>",
         "retryBlocked()": "<inferred>",
         "save()": "<inferred>"
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 97,
-        "catch": 2
+        "try": 114,
+        "catch": 8
       },
       "imports": [
         "Actor.zig",
+        "Envelope.zig",
+        "Timer.zig",
         "Turn.zig",
+        "Wait.zig",
         "std",
         "transit_catalog",
         "transit_data_client"
       ]
     },
+    "packages/zig/transit-station/src/transactional/Timer.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidDeadline": 1,
+        "InvalidTimeoutObservation": 2,
+        "InvalidTimerTicket": 6
+      },
+      "outcomes": {
+        "Kind": [
+          "wait_timeout",
+          "supervisor_backoff"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Observation.decode()": "<inferred>",
+        "Observation.encode()": "<inferred>",
+        "Ticket.decode()": "<inferred>",
+        "Ticket.encodeAlloc()": "<inferred>",
+        "Ticket.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 4,
+        "catch": 0
+      },
+      "imports": [
+        "std",
+        "transit_catalog"
+      ]
+    },
     "packages/zig/transit-station/src/transactional/Turn.zig": {
       "errors": {
+        "CorrelationAlreadyUsed": 1,
+        "ExpectedCall": 2,
+        "InvalidDeadline": 1,
+        "InvalidDestination": 2,
+        "InvalidFrameworkKey": 1,
+        "InvalidTimerObserver": 2,
+        "InvalidTurnContext": 1,
         "InvalidTurnLimits": 1,
-        "PoisonedTurn": 7,
-        "TurnCapacity": 12,
+        "PoisonedTurn": 12,
+        "ReservedFrameworkKey": 1,
+        "TimerQueueRequired": 4,
+        "TurnCapacity": 15,
+        "UnauthenticatedActorOrigin": 2,
+        "UndeclaredMailboxTarget": 2,
+        "UnknownCorrelation": 1,
         "UnsupportedTableRead": 1,
-        "UnsupportedTableWrite": 1
+        "UnsupportedTableWrite": 1,
+        "WaitAlreadyClosed": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -43697,19 +43799,70 @@
         "Read.row()": "anyerror",
         "Read.table()": "anyerror",
         "binary()": "<inferred>",
+        "call()": "<inferred>",
+        "callWithTimer()": "<inferred>",
+        "cancelWait()": "<inferred>",
+        "cast()": "<inferred>",
+        "checkUserKey()": "<inferred>",
+        "delete()": "<inferred>",
         "emit()": "<inferred>",
         "finish()": "<inferred>",
         "get()": "<inferred>",
+        "getFramework()": "<inferred>",
+        "getInternal()": "<inferred>",
         "init()": "<inferred>",
+        "initWithContext()": "<inferred>",
         "journal()": "<inferred>",
         "own()": "<inferred>",
         "put()": "<inferred>",
+        "putFramework()": "<inferred>",
         "readTable()": "<inferred>",
-        "table()": "<inferred>"
+        "reply()": "<inferred>",
+        "scheduleSupervisorBackoff()": "<inferred>",
+        "sendEnvelope()": "<inferred>",
+        "table()": "<inferred>",
+        "waiting()": "<inferred>",
+        "writeInternal()": "<inferred>"
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 20,
+        "try": 50,
+        "catch": 0
+      },
+      "imports": [
+        "Envelope.zig",
+        "Timer.zig",
+        "Wait.zig",
+        "std",
+        "transit_catalog"
+      ]
+    },
+    "packages/zig/transit-station/src/transactional/Wait.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidDeadline": 1,
+        "InvalidTimerObserver": 2,
+        "InvalidWaitRecord": 5,
+        "TurnCapacity": 1
+      },
+      "outcomes": {
+        "Phase": [
+          "waiting",
+          "replied",
+          "timed_out",
+          "cancelled"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Record.decode()": "<inferred>",
+        "Record.encodeAlloc()": "<inferred>",
+        "Record.validate()": "<inferred>",
+        "correlationFor()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 5,
         "catch": 0
       },
       "imports": [
@@ -43729,8 +43882,11 @@
       },
       "imports": [
         "Actor.zig",
+        "Envelope.zig",
         "Runner.zig",
+        "Timer.zig",
         "Turn.zig",
+        "Wait.zig",
         "transit_catalog"
       ]
     },
