@@ -68,7 +68,7 @@ def sample_read(client, sql, faults, label, expected):
 def companion_expressions(root, port, postgres, mysql_options, restart, catalog):
     """Actual stored values and frozen plans; independent native result bytes."""
     client = Client(root, port).open()
-    tzif = (ROOT / 'packages/zig/transit-fuze/src/timezone-fixtures/utc.tzif').read_bytes().hex()
+    tzif = (ROOT / 'packages/zig/transit-sql-frontend/src/timezone-fixtures/utc.tzif').read_bytes().hex()
     command(client, f"""CREATE TABLE history_companions (
         id INT64 PRIMARY KEY,
         a DECIMAL(8,2) ROUNDING HALF_EVEN, b DECIMAL(8,2),
