@@ -10,6 +10,7 @@ pub const Observer = @import("Observer.zig");
 pub const Pool = @import("Pool.zig");
 pub const Registry = @import("Registry.zig");
 pub const Supervisor = @import("Supervisor.zig");
+pub const ServiceController = @import("ServiceController.zig");
 
 test {
     _ = Actor;
@@ -22,5 +23,6 @@ test {
     _ = Pool;
     _ = Registry;
     _ = Supervisor;
+    _ = ServiceController;
     _ = @import("calls_test.zig");
 }

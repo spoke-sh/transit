@@ -744,7 +744,7 @@ fn exerciseTimersAndPool(init: std.process.Init, client: c.DirectTableClient, ad
     var observer_restarted = try s.Observer.init(init.gpa, obs_client, timers_queue, null, 30000, 2, inspector.view());
     defer observer_restarted.deinit();
     var redelivered = false;
-    for (0..64) |_| {
+    for (0..120) |_| {
         if (try observer_restarted.step(500) == .delivered) {
             redelivered = true;
             break;
@@ -774,7 +774,7 @@ fn exerciseTimersAndPool(init: std.process.Init, client: c.DirectTableClient, ad
     try t.expectEqualStrings("fast-ok", (try KV.apply(&output, client, .{ .get = .{ .object = caller_spec.actor.state.object, .key = "timer_result" } })).value.value.?.value.atom.bytes);
 
     var delivered_second = false;
-    for (0..16) |_| {
+    for (0..40) |_| {
         if (try observer_restarted.step(500) == .delivered) {
             delivered_second = true;
             break;
@@ -970,11 +970,11 @@ fn exerciseServices(init: std.process.Init, client: c.DirectTableClient, admin: 
     var output: std.heap.ArenaAllocator = .init(init.gpa);
     defer output.deinit();
 
-    const key_1209 = try p.Ed25519.KeyPair.generateDeterministic(@splat(129));
-    _ = try admin.change(.{ .bind_credential = .{ .principal = 1209, .role = role, .public_key = key_1209.public_key.toBytes() } });
+    const key_1210 = try p.Ed25519.KeyPair.generateDeterministic(@splat(130));
+    _ = try admin.change(.{ .bind_credential = .{ .principal = 1210, .role = role, .public_key = key_1210.public_key.toBytes() } });
     var obs_client = client;
-    obs_client.connection.principal = 1209;
-    obs_client.key = key_1209;
+    obs_client.connection.principal = 1210;
+    obs_client.key = key_1210;
 
     const svc_inbox = try createLog(init, client, &output, role, 850001, "svc_shared_inbox", .queue);
     const timers_queue = try createTimerQueue(init, client, &output, role, 850002, "svc_timers_q", 30000);
@@ -1146,11 +1146,11 @@ fn exerciseServices(init: std.process.Init, client: c.DirectTableClient, admin: 
         fn handle(raw: *anyopaque, turn: *s.Turn) !void {
             const self: *@This() = @ptrCast(@alignCast(raw));
             if (std.mem.eql(u8, turn.input, "register-child")) {
-                try s.Supervisor.register(turn, .{ .pid = self.child_id, .observer = 1209, .limit = 1, .backoff_ms = 2500 });
+                try s.Supervisor.register(turn, .{ .pid = self.child_id, .observer = 1210, .limit = 1, .backoff_ms = 2500 });
                 return;
             }
             if (std.mem.eql(u8, turn.input, "replace-child")) {
-                try s.Supervisor.replace(turn, self.child_id, self.retire_cut, .{ .pid = self.replacement_id, .observer = 1209, .limit = 2, .backoff_ms = 0 });
+                try s.Supervisor.replace(turn, self.child_id, self.retire_cut, .{ .pid = self.replacement_id, .observer = 1210, .limit = 2, .backoff_ms = 0 });
                 return;
             }
             try s.Supervisor.handle(turn);
@@ -1163,8 +1163,8 @@ fn exerciseServices(init: std.process.Init, client: c.DirectTableClient, admin: 
     var inspector: s.Observer.NativeInspector = .{
         .client = client.authority,
         .realm = client.connection.scope.realm,
-        .principal = 1209,
-        .key = key_1209,
+        .principal = 1210,
+        .key = key_1210,
     };
     var backoff_responder: s.Supervisor.BackoffResponder = .{ .process_view = inspector.view() };
     var observer = try s.Observer.init(init.gpa, obs_client, timers_queue, null, 30000, 10, inspector.view());
@@ -1228,6 +1228,504 @@ fn exerciseServices(init: std.process.Init, client: c.DirectTableClient, admin: 
     try t.expectEqual(s.Supervisor.Phase.watching, succ_child.phase);
 }
 
+const ServerServicesSaved = struct {
+    definition: p.Growth.Definition,
+    obs_principal: u64,
+    local_life_principal: u64,
+    replacement_worker: u64,
+    obs_watch: s.ServiceController.Watch,
+    local_life_watch: s.ServiceController.Watch,
+    sup_actor: Actor.Declaration,
+    sup_activation: p.Transaction.Execution,
+    caller_actor: Actor.Declaration,
+    caller_activation: p.Transaction.Execution,
+    local_child_actor: Actor.Declaration,
+    local_child_pid: u64,
+    corr: u64,
+};
+
+const ProfileAuthority = struct {
+    catalog: struct {
+        authority: c.TableAuthority.Profile,
+    },
+};
+
+fn grantDataObject(admin: anytype, auth_id: u64, grantee: u64, privileges: u64) !void {
+    _ = try admin.change(.{ .grant = .{
+        .object = c.TableAuthority.reference(auth_id),
+        .grantee = grantee,
+        .privileges = privileges,
+    } });
+}
+
+fn serverServicesSetup(init: std.process.Init, client: c.DirectTableClient, admin: anytype, role: u64, profile_path: []const u8) !void {
+    (try client.call(.initialize)).deinit();
+    var output: std.heap.ArenaAllocator = .init(init.gpa);
+    defer output.deinit();
+
+    const prof_bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, profile_path, output.allocator(), .limited(1024 * 1024));
+    const prof = (try std.json.parseFromSlice(ProfileAuthority, output.allocator(), prof_bytes, .{ .ignore_unknown_fields = true })).value;
+    const db_auth = prof.catalog.authority.database;
+    const schema_auth = prof.catalog.authority.initial_schema_authority;
+
+    const svc_inbox = try createLog(init, client, &output, role, 860001, "srv_shared_inbox", .queue);
+    const timers_queue = try createTimerQueue(init, client, &output, role, 860002, "srv_timers_q", 30000);
+    const inbox_auth = (try c.DirectLogClient.apply(&output, client, .{ .lookup = .{ .namespace = 1, .name = "srv_shared_inbox" } })).lookup.?.declaration.properties.authorization;
+    const timers_auth = (try c.DirectLogClient.apply(&output, client, .{ .lookup = .{ .namespace = 1, .name = "srv_timers_q" } })).lookup.?.declaration.properties.authorization;
+
+    var sup_spec = try createActor(init, client, &output, admin, role, 101, 861000, "srv_supervisor", svc_inbox, &.{});
+    sup_spec.actor.timers = timers_queue;
+
+    var caller_spec = try createActor(init, client, &output, admin, role, 101, 862000, "srv_caller", svc_inbox, &.{svc_inbox});
+    caller_spec.actor.timers = timers_queue;
+
+    var sub_child_spec = try createActor(init, client, &output, admin, role, 101, 863000, "srv_sub_child", svc_inbox, &.{});
+    sub_child_spec.actor.workload = @splat(13);
+
+    const key_repl_worker = try p.Ed25519.KeyPair.generateDeterministic(@splat(134));
+    _ = try admin.change(.{ .bind_credential = .{ .principal = 1214, .role = role, .public_key = key_repl_worker.public_key.toBytes() } });
+    var local_worker_client = client;
+    local_worker_client.connection.principal = 1214;
+    local_worker_client.key = key_repl_worker;
+
+    const local_child_spec = try createActor(init, client, &output, admin, role, 1214, 864000, "srv_local_child", svc_inbox, &.{});
+
+    const sup_state_auth = (try KV.apply(&output, client, .{ .observe = sup_spec.actor.state.object })).definition.authorization;
+    const sub_ctrl_auth = (try KV.apply(&output, client, .{ .observe = sub_child_spec.actor.control.object })).definition.authorization;
+    const local_ctrl_auth = (try KV.apply(&output, client, .{ .observe = local_child_spec.actor.control.object })).definition.authorization;
+
+    // Provision least-privilege service principals:
+    // 1211: observe (seed 131), 1212: Substrate child lifecycle (seed 132),
+    // 1213: local child lifecycle (seed 133), 1214: local child worker (seed 134),
+    // 1215: Substrate child worker (seed 135).
+    const key_obs = try p.Ed25519.KeyPair.generateDeterministic(@splat(131));
+    const key_sub_life = try p.Ed25519.KeyPair.generateDeterministic(@splat(132));
+    const key_local_life = try p.Ed25519.KeyPair.generateDeterministic(@splat(133));
+    const key_sub_worker_init = try p.Ed25519.KeyPair.generateDeterministic(@splat(135));
+    const key_sub_worker_act1 = try p.Ed25519.KeyPair.generateDeterministic(@splat(136));
+    const key_sub_worker_act2 = try p.Ed25519.KeyPair.generateDeterministic(@splat(137));
+
+    const obs_role = (try admin.change(.{ .create_role = .{ .name = try p.Value.init("srv-obs-role"), .login = true } })).?;
+    _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .realm, .id = 0 }, .grantee = obs_role, .privileges = p.permission(.inspect) } });
+    try grantDataObject(admin, db_auth, obs_role, c.TableAuthority.connect);
+    try grantDataObject(admin, schema_auth, obs_role, c.TableAuthority.usage);
+    try grantDataObject(admin, timers_auth, obs_role, c.LogAuthority.inspect | c.LogAuthority.read | c.LogAuthority.acquire | c.LogAuthority.settle);
+    try grantDataObject(admin, inbox_auth, obs_role, c.LogAuthority.inspect | c.LogAuthority.append);
+    try grantDataObject(admin, sup_state_auth, obs_role, c.KVAuthority.inspect | c.KVAuthority.read);
+    try grantDataObject(admin, sub_ctrl_auth, obs_role, c.KVAuthority.inspect | c.KVAuthority.read);
+    try grantDataObject(admin, local_ctrl_auth, obs_role, c.KVAuthority.inspect | c.KVAuthority.read);
+    _ = try admin.change(.{ .bind_credential = .{ .principal = 1211, .role = obs_role, .public_key = key_obs.public_key.toBytes() } });
+
+    const sub_life_role = (try admin.change(.{ .create_role = .{ .name = try p.Value.init("srv-sub-life-role"), .login = true } })).?;
+    _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .process, .id = sub_child_spec.pid }, .grantee = sub_life_role, .privileges = p.permission(.inspect) | p.permission(.admin) } });
+    try grantDataObject(admin, db_auth, sub_life_role, c.TableAuthority.connect);
+    try grantDataObject(admin, schema_auth, sub_life_role, c.TableAuthority.usage);
+    try grantDataObject(admin, sup_state_auth, sub_life_role, c.KVAuthority.inspect | c.KVAuthority.read);
+    try grantDataObject(admin, sub_ctrl_auth, sub_life_role, c.KVAuthority.inspect | c.KVAuthority.read | c.KVAuthority.write);
+    _ = try admin.change(.{ .bind_credential = .{ .principal = 1212, .role = sub_life_role, .pid = sub_child_spec.pid, .public_key = key_sub_life.public_key.toBytes() } });
+
+    const local_life_role = (try admin.change(.{ .create_role = .{ .name = try p.Value.init("srv-local-life-role"), .login = true } })).?;
+    _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .process, .id = local_child_spec.pid }, .grantee = local_life_role, .privileges = p.permission(.inspect) | p.permission(.admin) } });
+    try grantDataObject(admin, db_auth, local_life_role, c.TableAuthority.connect);
+    try grantDataObject(admin, schema_auth, local_life_role, c.TableAuthority.usage);
+    try grantDataObject(admin, sup_state_auth, local_life_role, c.KVAuthority.inspect | c.KVAuthority.read);
+    try grantDataObject(admin, local_ctrl_auth, local_life_role, c.KVAuthority.inspect | c.KVAuthority.read | c.KVAuthority.write);
+    _ = try admin.change(.{ .bind_credential = .{ .principal = 1213, .role = local_life_role, .pid = local_child_spec.pid, .public_key = key_local_life.public_key.toBytes() } });
+
+    const sub_worker_role = (try admin.change(.{ .create_role = .{ .name = try p.Value.init("srv-sub-worker-role"), .login = true } })).?;
+    _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .process, .id = sub_child_spec.pid }, .grantee = sub_worker_role, .privileges = p.permission(.execute) | p.permission(.inspect) } });
+    _ = try admin.change(.{ .membership = .{ .member = sub_worker_role, .role = role, .inherit = true } });
+    _ = try admin.change(.{ .bind_credential = .{ .principal = 1215, .role = sub_worker_role, .pid = sub_child_spec.pid, .public_key = key_sub_worker_init.public_key.toBytes() } });
+
+    // Substrate-bind and activate sub_child at generation 3.
+    const op_intent1 = try admin.submit(.{ .runtime_intent = .{
+        .pid = sub_child_spec.pid,
+        .expected_revision = 0,
+        .instance = @splat(11),
+        .resource = @splat(12),
+        .workload = @splat(13),
+        .desired = .running,
+    } });
+    _ = try admin.submit(.{ .runtime_observe = .{
+        .pid = sub_child_spec.pid,
+        .revision = 1,
+        .operation = op_intent1,
+        .incarnation = @splat(14),
+        .outcome = .ready,
+    } });
+    _ = try admin.submit(.{ .activate = .{
+        .pid = sub_child_spec.pid,
+        .revision = 1,
+        .expected_generation = 2,
+        .worker = 1215,
+        .worker_incarnation = @splat(15),
+        .public_key = key_sub_worker_act1.public_key.toBytes(),
+    } });
+    sub_child_spec.actor.connection.principal = 1215;
+    sub_child_spec.activation = .{
+        .realm = client.connection.scope.realm,
+        .pid = sub_child_spec.pid,
+        .principal = 1215,
+        .generation = 3,
+        .code = 1,
+        .workload = @splat(13),
+        .input = null,
+    };
+    var sub_worker_client = client;
+    sub_worker_client.connection.principal = 1215;
+    sub_worker_client.key = key_sub_worker_act1;
+
+    var sup_runner = try Runner.init(init.gpa, client, sup_spec.actor, sup_spec.activation);
+    defer sup_runner.deinit();
+    try sup_runner.bootstrap();
+
+    var caller_runner = try Runner.init(init.gpa, client, caller_spec.actor, caller_spec.activation);
+    defer caller_runner.deinit();
+    try caller_runner.bootstrap();
+
+    var sub_child_runner = try Runner.init(init.gpa, sub_worker_client, sub_child_spec.actor, sub_child_spec.activation);
+    defer sub_child_runner.deinit();
+    try sub_child_runner.bootstrap();
+
+    var local_child_runner = try Runner.init(init.gpa, local_worker_client, local_child_spec.actor, local_child_spec.activation);
+    defer local_child_runner.deinit();
+    try local_child_runner.bootstrap();
+
+    var obs_conn = client.connection;
+    obs_conn.principal = 1211;
+    var sub_life_conn = client.connection;
+    sub_life_conn.principal = 1212;
+    var local_life_conn = client.connection;
+    local_life_conn.principal = 1213;
+
+    const sub_obs_watch: s.ServiceController.Watch = .{
+        .connection = obs_conn,
+        .timers = timers_queue,
+        .supervisor_pid = sup_spec.pid,
+        .supervisor_state = sup_spec.actor.state,
+        .supervisor_inbox = svc_inbox,
+        .child = .{ .pid = sub_child_spec.pid, .control = sub_child_spec.actor.control, .worker_principal = 1215 },
+    };
+    const sub_life_watch: s.ServiceController.Watch = .{
+        .connection = sub_life_conn,
+        .supervisor_pid = sup_spec.pid,
+        .supervisor_state = sup_spec.actor.state,
+        .child = .{ .pid = sub_child_spec.pid, .control = sub_child_spec.actor.control, .worker_principal = 1215 },
+    };
+
+    // 1. Readiness check() neither advances principal_sequence nor accepts foreign PIDs/rotated keys.
+    var obs_ctrl = try s.ServiceController.init(init.gpa, client.authority, client.service, client.connection.scope.realm, 1211, key_obs, .observe, &.{sub_obs_watch}, 30000, 101);
+    defer obs_ctrl.deinit();
+    try obs_ctrl.check();
+    try t.expectEqual(@as(u64, 0), (try client.authority.query(.{ .realm = 42, .principal = 1211, .kind = .identity }, key_obs)).principal_sequence);
+
+    var sub_life_ctrl = try s.ServiceController.init(init.gpa, client.authority, client.service, client.connection.scope.realm, 1212, key_sub_life, .lifecycle, &.{sub_life_watch}, 30000, 102);
+    defer sub_life_ctrl.deinit();
+    try sub_life_ctrl.check();
+    try t.expectEqual(@as(u64, 0), (try client.authority.query(.{ .realm = 42, .principal = 1212, .kind = .identity }, key_sub_life)).principal_sequence);
+
+    var wrong_key_ctrl = try s.ServiceController.init(init.gpa, client.authority, client.service, client.connection.scope.realm, 1212, key_local_life, .lifecycle, &.{sub_life_watch}, 30000, 103);
+    defer wrong_key_ctrl.deinit();
+    try t.expectError(error.AccessDenied, wrong_key_ctrl.check());
+
+    var cross_pid_watch = sub_life_watch;
+    cross_pid_watch.child = .{ .pid = local_child_spec.pid, .control = local_child_spec.actor.control, .worker_principal = 1214 };
+    var cross_pid_ctrl = try s.ServiceController.init(init.gpa, client.authority, client.service, client.connection.scope.realm, 1212, key_sub_life, .lifecycle, &.{cross_pid_watch}, 30000, 104);
+    defer cross_pid_ctrl.deinit();
+    try t.expectError(error.UnsafeControllerPrincipal, cross_pid_ctrl.check());
+
+    // 2. Substrate stop-before-retry + post-intent crash recovery (`Point.after_own`).
+    const SupSetupBody = struct {
+        sub_pid: u64,
+        local_pid: u64,
+        fn handle(raw: *anyopaque, turn: *s.Turn) !void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            if (std.mem.eql(u8, turn.input, "register-children")) {
+                try s.Supervisor.register(turn, .{ .pid = self.sub_pid, .observer = 1211, .limit = 2, .backoff_ms = 0 });
+                try s.Supervisor.register(turn, .{ .pid = self.local_pid, .observer = 1211, .limit = 1, .backoff_ms = 100 });
+                return;
+            }
+            try s.Supervisor.handle(turn);
+        }
+    };
+    var sup_body: SupSetupBody = .{ .sub_pid = sub_child_spec.pid, .local_pid = local_child_spec.pid };
+    try enqueueEnvelope(&output, client, svc_inbox, 865001, sup_spec.pid, .{ .kind = .cast, .payload = "register-children" });
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&sup_runner, .{ .context = &sup_body, .run = SupSetupBody.handle }));
+
+    const FailBody = struct {
+        fail: bool = true,
+        fn handle(raw: *anyopaque, turn: *s.Turn) !void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            if (self.fail) return error.DeliberateChildFailure;
+            try turn.put("handled", turn.input);
+        }
+    };
+    var fail_body: FailBody = .{ .fail = true };
+    try enqueueEnvelope(&output, client, svc_inbox, 865002, sub_child_spec.pid, .{ .kind = .cast, .payload = "sub-fail-then-succeed" });
+    try t.expectEqual(Runner.Result.blocked, try advanceComplete(&sub_child_runner, .{ .context = &fail_body, .run = FailBody.handle }));
+    try t.expect((try sub_child_runner.inspect()).blocked);
+
+    // Observe failure -> Supervisor records retry_requested immediately (backoff_ms = 0).
+    try t.expect(try obs_ctrl.step(null));
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&sup_runner, .{ .context = &sup_body, .run = SupSetupBody.handle }));
+
+    // Lifecycle step 1: submits runtime_intent(.desired = .stopped), fencing old worker while Actor.Head stays blocked!
+    const root_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(17));
+    try t.expect(try sub_life_ctrl.step(null));
+    const after_stop_intent = (try client.authority.query(.{ .realm = 42, .principal = 0, .kind = .{ .process = sub_child_spec.pid } }, root_key)).body.process.process;
+    try t.expectEqual(.stopped, after_stop_intent.binding.?.desired);
+    try t.expectEqual(.pending, after_stop_intent.binding.?.phase);
+    try t.expectError(error.Rejected, sub_child_runner.inspect());
+    try t.expect((try sub_life_ctrl.inspectBlockedFailure(sub_life_watch, sub_child_spec.pid)) != null);
+
+    // Lifecycle step 2 before provider stopped confirmation: refuses to advance!
+    try t.expect(!try sub_life_ctrl.step(null));
+    try t.expect((try sub_life_ctrl.inspectBlockedFailure(sub_life_watch, sub_child_spec.pid)) != null);
+
+    // Substrate provider confirms physical stop.
+    _ = try admin.submit(.{ .runtime_observe = .{
+        .pid = sub_child_spec.pid,
+        .revision = after_stop_intent.binding.?.revision,
+        .operation = after_stop_intent.binding.?.operation,
+        .incarnation = @splat(14),
+        .outcome = .stopped,
+    } });
+
+    // Crash after runtime_intent(.desired = .running) commits, before Actor.Head unblock.
+    const CrashHook = struct {
+        crashed: bool = false,
+        fn hit(raw: *anyopaque, pt: s.ServiceController.Point) !void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            if (pt == .after_own and !self.crashed) {
+                self.crashed = true;
+                return error.SimulatedControllerCrash;
+            }
+        }
+    };
+    var crash_hook: CrashHook = .{};
+    sub_life_ctrl.hook = .{ .context = &crash_hook, .hit = CrashHook.hit };
+    try t.expectError(error.SimulatedControllerCrash, sub_life_ctrl.step(null));
+    try t.expect(crash_hook.crashed);
+    const after_crash = (try client.authority.query(.{ .realm = 42, .principal = 0, .kind = .{ .process = sub_child_spec.pid } }, root_key)).body.process.process;
+    try t.expectEqual(.running, after_crash.binding.?.desired);
+    try t.expectEqual(@as(u64, 3), after_crash.binding.?.revision);
+    try t.expect((try sub_life_ctrl.inspectBlockedFailure(sub_life_watch, sub_child_spec.pid)) != null);
+
+    // Fresh restarted lifecycle controller finishes unblocking Actor.Head without another runtime_intent.
+    var sub_life_ctrl2 = try s.ServiceController.init(init.gpa, client.authority, client.service, client.connection.scope.realm, 1212, key_sub_life, .lifecycle, &.{sub_life_watch}, 30000, 105);
+    defer sub_life_ctrl2.deinit();
+    try t.expect(try sub_life_ctrl2.step(null));
+    const after_recover = (try client.authority.query(.{ .realm = 42, .principal = 0, .kind = .{ .process = sub_child_spec.pid } }, root_key)).body.process.process;
+    try t.expectEqual(@as(u64, 3), after_recover.binding.?.revision);
+    try t.expect((try sub_life_ctrl2.inspectBlockedFailure(sub_life_watch, sub_child_spec.pid)) == null);
+
+    // Substrate provider activates replacement worker incarnation; original held input commits!
+    _ = try admin.submit(.{ .runtime_observe = .{
+        .pid = sub_child_spec.pid,
+        .revision = 3,
+        .operation = after_recover.binding.?.operation,
+        .incarnation = @splat(14),
+        .outcome = .ready,
+    } });
+    _ = try admin.submit(.{ .activate = .{
+        .pid = sub_child_spec.pid,
+        .revision = 3,
+        .expected_generation = after_recover.generation,
+        .worker = 1215,
+        .worker_incarnation = @splat(16),
+        .public_key = key_sub_worker_act2.public_key.toBytes(),
+    } });
+    const activated_proc = (try client.authority.query(.{ .realm = 42, .principal = 0, .kind = .{ .process = sub_child_spec.pid } }, root_key)).body.process.process;
+    var sub_worker_client2 = sub_worker_client;
+    sub_worker_client2.key = key_sub_worker_act2;
+    var sub_activation2 = sub_child_spec.activation;
+    sub_activation2.generation = activated_proc.generation;
+    var sub_child_runner2 = try Runner.init(init.gpa, sub_worker_client2, sub_child_spec.actor, sub_activation2);
+    defer sub_child_runner2.deinit();
+    fail_body.fail = false;
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&sub_child_runner2, .{ .context = &fail_body, .run = FailBody.handle }));
+    try t.expectEqualStrings("sub-fail-then-succeed", (try KV.apply(&output, client, .{ .get = .{ .object = sub_child_spec.actor.state.object, .key = "handled" } })).value.value.?.value.atom.bytes);
+
+    // 3. Stage local_child failure + caller timer ticket for OS `transit __transit_role_v1 station` processes.
+    fail_body.fail = true;
+    try enqueueEnvelope(&output, client, svc_inbox, 865003, local_child_spec.pid, .{ .kind = .cast, .payload = "local-fail-then-succeed" });
+    try t.expectEqual(Runner.Result.blocked, try advanceComplete(&local_child_runner, .{ .context = &fail_body, .run = FailBody.handle }));
+    try t.expect((try local_child_runner.inspect()).blocked);
+
+    const now_earliest_ms = (try Queue.apply(&output, client, .{ .current_time = timers_queue })).current_time.time.earliest_ms;
+    const CallerTimerBody = struct {
+        inbox: p.StreamQueue.Partition,
+        target: u64,
+        deadline_ms: u64,
+        corr: u64 = 0,
+        fn handle(raw: *anyopaque, turn: *s.Turn) !void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            if (turn.context.envelope.?.kind == .cast) {
+                self.corr = try turn.callWithTimer(self.inbox, self.target, "unanswered-call", self.deadline_ms, 1211);
+                try turn.put("timer", "waiting");
+            } else if (turn.context.envelope.?.kind == .timeout) {
+                try turn.put("timer", "timed_out");
+            }
+        }
+    };
+    // Target sub_child_spec.pid so the call stays unanswered while caller's timer fires.
+    var caller_timer: CallerTimerBody = .{ .inbox = svc_inbox, .target = sub_child_spec.pid, .deadline_ms = now_earliest_ms + 100 };
+    try enqueueEnvelope(&output, client, svc_inbox, 865004, caller_spec.pid, .{ .kind = .cast, .payload = "start-timer" });
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&caller_runner, .{ .context = &caller_timer, .run = CallerTimerBody.handle }));
+    try t.expect(caller_timer.corr != 0);
+
+    const local_obs_watch: s.ServiceController.Watch = .{
+        .connection = obs_conn,
+        .timers = timers_queue,
+        .supervisor_pid = sup_spec.pid,
+        .supervisor_state = sup_spec.actor.state,
+        .supervisor_inbox = svc_inbox,
+        .child = .{ .pid = local_child_spec.pid, .control = local_child_spec.actor.control, .worker_principal = 1214 },
+    };
+    const local_life_watch: s.ServiceController.Watch = .{
+        .connection = local_life_conn,
+        .supervisor_pid = sup_spec.pid,
+        .supervisor_state = sup_spec.actor.state,
+        .child = .{ .pid = local_child_spec.pid, .control = local_child_spec.actor.control, .worker_principal = 1214 },
+    };
+    const saved_path = try std.fmt.allocPrint(output.allocator(), "{s}.server-services", .{profile_path});
+    try save(init, saved_path, ServerServicesSaved{
+        .definition = p.Growth.current_definition,
+        .obs_principal = 1211,
+        .local_life_principal = 1213,
+        .replacement_worker = 1214,
+        .obs_watch = local_obs_watch,
+        .local_life_watch = local_life_watch,
+        .sup_actor = sup_spec.actor,
+        .sup_activation = sup_spec.activation,
+        .caller_actor = caller_spec.actor,
+        .caller_activation = caller_spec.activation,
+        .local_child_actor = local_child_spec.actor,
+        .local_child_pid = local_child_spec.pid,
+        .corr = caller_timer.corr,
+    });
+}
+
+fn serverServicesPump(init: std.process.Init, client: c.DirectTableClient, profile_path: []const u8) !void {
+    var output: std.heap.ArenaAllocator = .init(init.gpa);
+    defer output.deinit();
+    const saved_path = try std.fmt.allocPrint(output.allocator(), "{s}.server-services", .{profile_path});
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, saved_path, output.allocator(), .limited(1024 * 1024));
+    const saved = (try p.Json.parseFromSlice(ServerServicesSaved, output.allocator(), bytes)).value;
+
+    var sup_runner = try Runner.init(init.gpa, client, saved.sup_actor, saved.sup_activation);
+    defer sup_runner.deinit();
+    const SupPump = struct {
+        fn handle(_: *anyopaque, turn: *s.Turn) !void {
+            try s.Supervisor.handle(turn);
+        }
+    };
+    var dummy: u8 = 0;
+    const ck = s.Supervisor.key(saved.local_child_pid);
+    for (0..80) |_| {
+        _ = try advanceComplete(&sup_runner, .{ .context = &dummy, .run = SupPump.handle });
+        const raw = (try KV.apply(&output, client, .{ .get = .{ .object = saved.sup_actor.state.object, .key = &ck } })).value.value.?.value.atom.bytes;
+        const child = try s.Supervisor.Child.decode(raw);
+        if (child.phase == .retry_requested) return;
+        try init.io.sleep(.fromMilliseconds(50), .awake);
+    }
+    return error.SupervisorRetryNotRequested;
+}
+
+fn serverServicesCheckGated(init: std.process.Init, client: c.DirectTableClient, profile_path: []const u8) !void {
+    var output: std.heap.ArenaAllocator = .init(init.gpa);
+    defer output.deinit();
+    const root_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(17));
+    const saved_path = try std.fmt.allocPrint(output.allocator(), "{s}.server-services", .{profile_path});
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, saved_path, output.allocator(), .limited(1024 * 1024));
+    const saved = (try p.Json.parseFromSlice(ServerServicesSaved, output.allocator(), bytes)).value;
+    const proc = (try client.authority.query(.{ .realm = 42, .principal = 0, .kind = .{ .process = saved.local_child_pid } }, root_key)).body.process.process;
+    try t.expectEqual(@as(u64, 1), proc.generation);
+    const key_repl = try p.Ed25519.KeyPair.generateDeterministic(@splat(134));
+    var worker_client = client;
+    worker_client.connection.principal = 1214;
+    worker_client.key = key_repl;
+    const dummy_act: p.Transaction.Execution = .{ .realm = 42, .pid = saved.local_child_pid, .principal = 1214, .generation = 1, .code = 1, .workload = null, .input = null };
+    var child_runner = try Runner.init(init.gpa, worker_client, saved.local_child_actor, dummy_act);
+    defer child_runner.deinit();
+    try t.expect((try child_runner.inspect()).blocked);
+}
+
+fn serverServicesVerify(init: std.process.Init, client: c.DirectTableClient, admin: anytype, profile_path: []const u8) !void {
+    var output: std.heap.ArenaAllocator = .init(init.gpa);
+    defer output.deinit();
+    const saved_path = try std.fmt.allocPrint(output.allocator(), "{s}.server-services", .{profile_path});
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, saved_path, output.allocator(), .limited(1024 * 1024));
+    const saved = (try p.Json.parseFromSlice(ServerServicesSaved, output.allocator(), bytes)).value;
+
+    // 1. Caller actor processes TMO1 delivered by the OS observer role.
+    var caller_runner = try Runner.init(init.gpa, client, saved.caller_actor, saved.caller_activation);
+    defer caller_runner.deinit();
+    const CallerVerify = struct {
+        fn handle(_: *anyopaque, turn: *s.Turn) !void {
+            try t.expectEqual(s.Envelope.Kind.timeout, turn.context.envelope.?.kind);
+            try turn.put("timer", "timed_out");
+        }
+    };
+    var dummy: u8 = 0;
+    var caller_done = false;
+    for (0..100) |_| {
+        if (try advanceComplete(&caller_runner, .{ .context = &dummy, .run = CallerVerify.handle }) == .committed) {
+            caller_done = true;
+            break;
+        }
+        try init.io.sleep(.fromMilliseconds(50), .awake);
+    }
+    try t.expect(caller_done);
+    try t.expectEqualStrings("timed_out", (try KV.apply(&output, client, .{ .get = .{ .object = saved.caller_actor.state.object, .key = "timer" } })).value.value.?.value.atom.bytes);
+    const wk = s.Wait.key(saved.corr);
+    const wait_rec = try s.Wait.Record.decode(output.allocator(), (try KV.apply(&output, client, .{ .get = .{ .object = saved.caller_actor.state.object, .key = &wk } })).value.value.?.value.atom.bytes);
+    try t.expectEqual(s.Wait.Phase.timed_out, wait_rec.phase);
+
+    // 2. Wait for OS lifecycle role to finish own + unblockChildHead, then run replacement worker (1214, gen 2).
+    const key_repl = try p.Ed25519.KeyPair.generateDeterministic(@splat(134));
+    var repl_client = client;
+    repl_client.connection.principal = 1214;
+    repl_client.key = key_repl;
+    const repl_activation: p.Transaction.Execution = .{
+        .realm = client.connection.scope.realm,
+        .pid = saved.local_child_pid,
+        .principal = 1214,
+        .generation = 2,
+        .code = 1,
+        .workload = null,
+        .input = null,
+    };
+    var repl_runner = try Runner.init(init.gpa, repl_client, saved.local_child_actor, repl_activation);
+    defer repl_runner.deinit();
+
+    const root_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(17));
+    var unblocked = false;
+    for (0..100) |_| {
+        const proc = (try client.authority.query(.{ .realm = 42, .principal = 0, .kind = .{ .process = saved.local_child_pid } }, root_key)).body.process.process;
+        if (proc.owner == @as(?u64, 1214) and proc.generation == 2 and !(try repl_runner.inspect()).blocked) {
+            unblocked = true;
+            break;
+        }
+        try init.io.sleep(.fromMilliseconds(50), .awake);
+    }
+    try t.expect(unblocked);
+
+    const SucceedBody = struct {
+        fn handle(_: *anyopaque, turn: *s.Turn) !void {
+            try turn.put("handled", turn.input);
+        }
+    };
+    try t.expectEqual(Runner.Result.committed, try advanceComplete(&repl_runner, .{ .context = &dummy, .run = SucceedBody.handle }));
+    try t.expectEqualStrings("local-fail-then-succeed", (try KV.apply(&output, client, .{ .get = .{ .object = saved.local_child_actor.state.object, .key = "handled" } })).value.value.?.value.atom.bytes);
+
+    // 3. Rotate lifecycle principal 1213's credential key while OS lifecycle process is running idle!
+    const key_local_life = try p.Ed25519.KeyPair.generateDeterministic(@splat(133));
+    const rotated_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(138));
+    const auth_id = (try client.authority.query(.{ .realm = 42, .principal = 1213, .kind = .{ .authorization = .{ .kind = .identity } } }, key_local_life)).body.authorization.body.identity;
+    _ = try admin.change(.{ .rotate_credential = .{ .principal = 1213, .expected_epoch = auth_id.credential_epoch, .public_key = rotated_key.public_key.toBytes() } });
+}
+
 fn caseMissingBegin(case: Case) bool {
     return case == .head;
 }
@@ -1235,6 +1733,10 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
     if (std.mem.eql(u8, command, "calls")) return exerciseCalls(init, client, admin, role);
     if (std.mem.eql(u8, command, "timers_pool")) return exerciseTimersAndPool(init, client, admin, role);
     if (std.mem.eql(u8, command, "services")) return exerciseServices(init, client, admin, role);
+    if (std.mem.eql(u8, command, "server_services_setup")) return serverServicesSetup(init, client, admin, role, profile);
+    if (std.mem.eql(u8, command, "server_services_pump")) return serverServicesPump(init, client, profile);
+    if (std.mem.eql(u8, command, "server_services_check_gated")) return serverServicesCheckGated(init, client, profile);
+    if (std.mem.eql(u8, command, "server_services_verify")) return serverServicesVerify(init, client, admin, profile);
     var parts = std.mem.splitScalar(u8, command, '-');
     const phase = parts.next() orelse return error.InvalidPhase;
     const case = std.meta.stringToEnum(Case, parts.next() orelse return error.InvalidCase) orelse return error.InvalidCase;

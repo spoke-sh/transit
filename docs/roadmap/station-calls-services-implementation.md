@@ -1,6 +1,6 @@
 # Milestone 6 transactional calls, timers, names and supervision implementation plan
 
-[Milestone 6](06-streams-queues-and-durable-runtime.md) · [Completion plan](streams-queues-runtime-completion.md) · **Status: Proposed** · 2026-11-19
+[Milestone 6](06-streams-queues-and-durable-runtime.md) · [Completion plan](streams-queues-runtime-completion.md) · **Status: Implemented (Units 1–5)** · 2026-11-20
 
 Implement **Batch 6 (`Units C` and `D` in the [completion plan](streams-queues-runtime-completion.md)):
 authenticated durable calls, replies, timers, `Registry` names and `Supervisor`

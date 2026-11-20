@@ -2219,6 +2219,7 @@
     "apps/transit-cli/server/StationRole.zig": {
       "errors": {
         "AuthorityTransportDenied": 1,
+        "AuthorityUnavailable": 1,
         "ExpectedConfig": 1,
         "FileNotFound": 1,
         "InvalidClock": 1,
@@ -2234,11 +2235,12 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 12,
+        "try": 15,
         "catch": 3
       },
       "imports": [
         "Files.zig",
+        "station_transaction_internal",
         "std",
         "transit_query"
       ]
@@ -2247,8 +2249,8 @@
       "errors": {
         "DuplicateStationService": 1,
         "FileNotFound": 2,
-        "InvalidController": 2,
-        "InvalidStationManifest": 1,
+        "InvalidController": 4,
+        "InvalidStationManifest": 2,
         "InvalidWatch": 5,
         "MissingStationManifest": 1,
         "ServerStopped": 1,
@@ -2271,7 +2273,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 32,
+        "try": 39,
         "catch": 2
       },
       "imports": [
@@ -2281,6 +2283,7 @@
         "Installation.zig",
         "Process.zig",
         "StationRole.zig",
+        "station_transaction_internal",
         "std",
         "transit_query"
       ]
@@ -43564,7 +43567,7 @@
     },
     "packages/zig/transit-station/src/transactional/Actor.zig": {
       "errors": {
-        "ActorIdentityConflict": 18,
+        "ActorIdentityConflict": 21,
         "IncompatibleDefinition": 2,
         "InvalidActorDeclaration": 4,
         "TurnCapacity": 1
@@ -43884,7 +43887,7 @@
       },
       "open_error_set_uses": 6,
       "propagation": {
-        "try": 120,
+        "try": 121,
         "catch": 13
       },
       "imports": [
@@ -43896,6 +43899,65 @@
         "std",
         "transit_catalog",
         "transit_data_client"
+      ]
+    },
+    "packages/zig/transit-station/src/transactional/ServiceController.zig": {
+      "errors": {
+        "ActorIdentityConflict": 4,
+        "ActorProgressUnresolved": 2,
+        "AuthorityUnavailable": 4,
+        "InvalidAuthorityResponse": 1,
+        "InvalidChild": 1,
+        "InvalidController": 2,
+        "InvalidWatch": 11,
+        "ObserverProgressUnresolved": 2,
+        "TurnCapacity": 1,
+        "UnsafeControllerPrincipal": 3
+      },
+      "outcomes": {
+        "Mode": [
+          "observe",
+          "lifecycle"
+        ],
+        "Point": [
+          "after_own"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Hook.hit()": "anyerror",
+        "RetryGate.stopped()": "anyerror",
+        "applyKV()": "<inferred>",
+        "applyQueue()": "<inferred>",
+        "check()": "<inferred>",
+        "init()": "<inferred>",
+        "inspectBlockedFailure()": "<inferred>",
+        "loadActorHead()": "<inferred>",
+        "loadSupervisorChild()": "<inferred>",
+        "observeChildOperation()": "<inferred>",
+        "step()": "<inferred>",
+        "stepLifecycle()": "<inferred>",
+        "stepObserveChild()": "<inferred>",
+        "stepTimers()": "<inferred>",
+        "submitNative()": "<inferred>",
+        "unblockChildHead()": "<inferred>",
+        "validateWatches()": "<inferred>",
+        "view()": "<inferred>"
+      },
+      "open_error_set_uses": 4,
+      "propagation": {
+        "try": 67,
+        "catch": 2
+      },
+      "imports": [
+        "Actor.zig",
+        "Envelope.zig",
+        "Observer.zig",
+        "Runner.zig",
+        "Supervisor.zig",
+        "Timer.zig",
+        "std",
+        "transit_catalog"
       ]
     },
     "packages/zig/transit-station/src/transactional/Supervisor.zig": {
@@ -44107,6 +44169,7 @@
         "Pool.zig",
         "Registry.zig",
         "Runner.zig",
+        "ServiceController.zig",
         "Supervisor.zig",
         "Timer.zig",
         "Turn.zig",

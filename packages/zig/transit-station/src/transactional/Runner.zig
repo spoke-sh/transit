@@ -214,7 +214,7 @@ pub fn advance(self: *Self, handler: Handler) !Result {
     var target_buf: [Actor.max_targets]p.Transaction.Target = undefined;
     const targets = try self.output.allocator().dupe(p.Transaction.Target, self.actor.targetsInto(&target_buf));
     var execution = self.activation;
-    execution.input = if (loaded.head.held_input) |held| held.claim.claim else .{
+    execution.input = if (loaded.head.held_input != null) null else .{
         .target = self.actor.inbox,
         .operation = self.op(turn, "claim", 0),
         .maximum = 1,
@@ -258,9 +258,10 @@ pub fn advance(self: *Self, handler: Handler) !Result {
     if (loaded.head.held_input) |held| {
         try self.point(.claim);
         loaded.head.pending.?.claim = held.claim;
-        const page = (try self.applyQueue(&self.output, .{ .page = .{ .cursor = .{ .receipt = held.claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = @intCast(self.actor.limits.bytes) } } })).page;
-        if (page.rows.len != 1 or !page.cursor.complete() or page.rows[0].lease.liveness != .live) {
-            // Held lease expired before conflict retry began; release retry state and re-claim cleanly.
+        const now = (try self.applyQueue(&self.output, .{ .current_time = self.actor.inbox })).current_time;
+        try now.validate();
+        if (held.lease.claim.principal != self.client.connection.principal or now.time.latest_ms >= held.lease.expires_ms) {
+            // Held lease expired before retry began; release retry state and re-claim cleanly.
             loaded.head.held_input = null;
             loaded.head.conflict_retries = 0;
             loaded.head.pending.?.phase = .reading;
@@ -606,7 +607,7 @@ fn recover(self: *Self, loaded: *Loaded) !Result {
     var journal: Journal = .{ .runner = self, .loaded = loaded };
     var tx = try journal.transaction();
     defer tx.deinit();
-    const observed = (try self.applyTx(&tx, .{ .recover = .{ .steps = 64, .close_input = true } })).recovered;
+    const observed = (try self.applyTx(&tx, .{ .recover = .{ .steps = 64, .close_input = pending.begin.execution.?.input != null } })).recovered;
     if (observed) |recovery| {
         if (!recovery.status.cleanup_complete) return .recovering;
         return self.finish(loaded, recovery.status, false);
@@ -620,6 +621,21 @@ fn recover(self: *Self, loaded: *Loaded) !Result {
     if (should_block) {
         loaded.head.failure = loaded.head.next_turn - 1;
         loaded.head.blocked_generation = original.generation;
+        if (pending.claim != null and pending.source != null and pending.lease != null and pending.input != null) {
+            const claim_turn = if (loaded.head.held_input) |held| held.claim_turn else (loaded.head.next_turn - 1);
+            loaded.head.blocked_input = .{
+                .claim_turn = claim_turn,
+                .claim = pending.claim.?,
+                .source = pending.source.?,
+                .execution_origin = pending.execution_origin,
+                .lease = pending.lease.?,
+                .input = pending.input.?,
+            };
+        } else {
+            loaded.head.blocked_input = null;
+        }
+    } else {
+        loaded.head.blocked_input = null;
     }
     loaded.head.held_input = null;
     loaded.head.pending = null;
@@ -635,6 +651,7 @@ fn finish(self: *Self, loaded: *Loaded, status: c.DirectTransactionControl.Statu
         loaded.head.completed += 1;
         loaded.head.conflict_retries = 0;
         loaded.head.held_input = null;
+        loaded.head.blocked_input = null;
         loaded.head.pending = null;
         try self.save(loaded);
         try self.point(.cleared);
@@ -663,6 +680,21 @@ fn finish(self: *Self, loaded: *Loaded, status: c.DirectTransactionControl.Statu
     if (should_block) {
         loaded.head.failure = loaded.head.next_turn - 1;
         loaded.head.blocked_generation = self.activation.generation;
+        if (pending.claim != null and pending.source != null and pending.lease != null and pending.input != null) {
+            const claim_turn = if (loaded.head.held_input) |held| held.claim_turn else (loaded.head.next_turn - 1);
+            loaded.head.blocked_input = .{
+                .claim_turn = claim_turn,
+                .claim = pending.claim.?,
+                .source = pending.source.?,
+                .execution_origin = pending.execution_origin,
+                .lease = pending.lease.?,
+                .input = pending.input.?,
+            };
+        } else {
+            loaded.head.blocked_input = null;
+        }
+    } else {
+        loaded.head.blocked_input = null;
     }
     loaded.head.held_input = null;
     loaded.head.pending = null;
@@ -740,6 +772,7 @@ pub fn retryBlocked(self: *Self) !void {
     loaded.head.failure = 0;
     loaded.head.blocked_generation = 0;
     loaded.head.conflict_retries = 0;
+    loaded.head.blocked_input = null;
     try self.save(&loaded);
 }
 pub fn inspect(self: *Self) !Actor.Head {

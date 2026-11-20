@@ -9,8 +9,19 @@ pub const Admin = struct {
         return self.client.query(.{ .realm = 42, .principal = 0, .kind = .{ .authorization = .{ .kind = kind } } }, try key(17));
     }
     pub fn submit(self: *@This(), command: g.Command) !u64 {
-        const identity = try self.query(.identity);
-        return (try self.client.submit(try g.sign(.{ .realm = 42, .principal = 0, .sequence = identity.principal_sequence + 1, .command = command }, try key(17)))).position;
+        var last_err: anyerror = error.Rejected;
+        for (0..8) |_| {
+            const identity = try self.query(.identity);
+            const result = self.client.submit(try g.sign(.{ .realm = 42, .principal = 0, .sequence = identity.principal_sequence + 1, .command = command }, try key(17))) catch |err| {
+                if (err == error.Rejected and self.client.last_rejection == .ConflictingRetry) {
+                    last_err = err;
+                    continue;
+                }
+                return err;
+            };
+            return result.position;
+        }
+        return last_err;
     }
     pub fn change(self: *@This(), action: p.Authorization.Action) !?u64 {
         const revision = (try self.query(.identity)).body.authorization.revision;

@@ -255,6 +255,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     transit_cli.root_module.addImport("transit_sql_gateway_role", sql_gateway_app.root_module);
     transit_cli.root_module.addImport("transit_serving_http", serving_http.module("transit_serving_http"));
     transit_cli.root_module.addImport("transit_sql_host", sql_host.module("transit_sql_host"));
+    transit_cli.root_module.addImport("station_transaction_internal", station.module("station_transaction_internal"));
     const flight_gateway = b.dependency("transit_flight_gateway", .{ .target = target, .optimize = optimize }).artifact("transit-flight-gateway");
     b.step("transit-flight-gateway", "Install the finite Flight gateway").dependOn(&b.addInstallArtifact(flight_gateway, .{}).step);
     const install_sql_gateway = b.addInstallArtifact(sql_gateway_app, .{});

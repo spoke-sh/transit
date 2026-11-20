@@ -147,11 +147,13 @@ fn point(self: *Self, value: Point) !void {
     if (self.hook) |hook| try hook.hit(hook.context, value);
 }
 
-pub fn ticketDeliverOperation(connection: c.DirectTableProtocol.Connection, source: p.StreamQueue.RecordIdentity, generation: u64, cut: u64) !d.Operation {
+pub fn ticketDeliverOperation(connection: c.DirectTableProtocol.Connection, source: p.StreamQueue.RecordIdentity, target_pid: u64, encoded_env: []const u8) !d.Operation {
+    var env_digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(encoded_env, &env_digest, .{});
     const digest = try p.Json.hashBounded("transit.station.private.observer.deliver.v1\x00", .{
         .source = source,
-        .generation = generation,
-        .cut = cut,
+        .target_pid = target_pid,
+        .envelope = env_digest,
     }, 4096);
     return Actor.operation(connection, digest, 1, "deliver", source.ordinal);
 }
@@ -166,6 +168,7 @@ fn applyQueue(output: *std.heap.ArenaAllocator, caller: c.DirectTableClient, act
     for (0..4) |_| {
         return c.DirectQueueClient.apply(output, caller, action) catch |err| {
             if (err != error.AuthorityUnavailable) return err;
+            if (caller.service.last_rejection != .AuthorityUnavailable) return err;
             last_err = err;
             continue;
         };
@@ -246,8 +249,6 @@ pub fn step(self: *Self, wait_ms: ?u32) !Result {
     }
 
     var tmo_buf: [Timer.observation_bytes]u8 = undefined;
-    var deliver_gen: u64 = 0;
-    var deliver_cut: u64 = 0;
     const maybe_env: ?Envelope = switch (ticket.kind) {
         .wait_timeout => blk: {
             tmo_buf = try (Timer.Observation{ .observed_ms = proven_ms }).encode();
@@ -255,8 +256,6 @@ pub fn step(self: *Self, wait_ms: ?u32) !Result {
         },
         .supervisor_backoff => blk: {
             const builder = self.backoff_builder orelse return error.SupervisorBackoffHandlerMissing;
-            deliver_gen = proc.generation;
-            deliver_cut = proc.position;
             const sup_payload = (try builder.build(builder.context, self.output.allocator(), ticket, proc, proven_ms)) orelse break :blk null;
             break :blk .{ .kind = .cast, .correlation = 0, .payload = sup_payload };
         },
@@ -268,7 +267,7 @@ pub fn step(self: *Self, wait_ms: ?u32) !Result {
     }
 
     const encoded_env = try maybe_env.?.encodeAlloc(self.output.allocator());
-    const deliver_op = try ticketDeliverOperation(self.client.connection, source, deliver_gen, deliver_cut);
+    const deliver_op = try ticketDeliverOperation(self.client.connection, source, ticket.target_pid, encoded_env);
     const cells = [_]c.fuze.Types.Values.Cell{
         .{ .value = .{ .atom = .{ .signed = @intCast(ticket.target_pid) } } },
         .{ .value = .{ .atom = .{ .bytes = encoded_env } } },
@@ -328,8 +327,9 @@ test "private transactional observer deterministic ticket operations bind record
         .operation = .{ .scope = scope, .principal = 101, .operation = 501 },
         .ordinal = 0,
     };
-    try t.expectEqualDeep(try ticketDeliverOperation(conn, src_a, 0, 0), try ticketDeliverOperation(conn, src_a, 0, 0));
-    try t.expect(!std.meta.eql(try ticketDeliverOperation(conn, src_a, 0, 0), try ticketDeliverOperation(conn, src_b, 0, 0)));
+    try t.expectEqualDeep(try ticketDeliverOperation(conn, src_a, 7, "env-a"), try ticketDeliverOperation(conn, src_a, 7, "env-a"));
+    try t.expect(!std.meta.eql(try ticketDeliverOperation(conn, src_a, 7, "env-a"), try ticketDeliverOperation(conn, src_b, 7, "env-a")));
+    try t.expect(!std.meta.eql(try ticketDeliverOperation(conn, src_a, 7, "env-a"), try ticketDeliverOperation(conn, src_a, 7, "env-b")));
     try t.expectEqualDeep(try ticketAckOperation(conn, src_a, 1), try ticketAckOperation(conn, src_a, 1));
     try t.expect(!std.meta.eql(try ticketAckOperation(conn, src_a, 1), try ticketAckOperation(conn, src_a, 2)));
 }

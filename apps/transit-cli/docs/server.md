@@ -738,18 +738,28 @@ or removing it rejects on restart. There is no live topology update, reassignmen
 of an accepted observer, or inference of watches from all application state.
 Keep the referenced private seed files available across restarts.
 
-Each service has a unique name and nonzero dedicated principal. Observers require
-exactly inspect/send permissions (20). Lifecycle actuators require exactly
-inspect/admin (17), a PID scope, and the same explicit `child` on every watch.
-Each watched resource needs an explicit inspect/read grant (3); its writer must
-match `pid`. A scoped lifecycle identity also needs an association from its child
-to the supervisor resource. Registration confers no native rights. The server
-checks current access while idle and never repairs revoked grants on restart.
+Each service has a unique name and nonzero dedicated principal, and declares
+either native `watches` or `transactional` data-plane targets (never both). For
+native `watches`, observers require exactly inspect/send permissions (20), each
+watched resource needs an explicit inspect/read grant (3) with its writer
+matching `pid`, and scoped lifecycle identities also need an association from the
+child to the supervisor resource. For `transactional` targets, observers require
+realm inspect (or inspect/send) plus Queue `inspect`/`read`/`acquire`/`settle` on
+declared `timers` Queues, Queue `inspect`/`append` on target inboxes, and KV
+`inspect`/`read` on watched `supervisor_state` and `child.control` objects; they
+claim visible `TimerTicket` rows via `QueueWait` and read `SUC1` and `Actor.Head`
+entries by exact key instead of scanning KV pages. Lifecycle actuators require
+exactly inspect/admin (17), a PID scope matching the same explicit `child` on
+every watch, KV `inspect`/`read` on `supervisor_state`, and KV
+`inspect`/`read`/`write` on `child.control`. Registration confers no native or
+catalog rights. The server checks current access while idle without advancing
+`principal_sequence` and never repairs revoked grants on restart.
 
-A service watches one to four resources. `station.max_services` bounds each
+A service watches one to four targets. `station.max_services` bounds each
 external deployment group (default 32, maximum 256); each local application has
-at most eight services. `interval_ms` defaults to 100 and `request_timeout_ms` to
-2000; each accepts 1–60000 ms. Reads are paged and the controller retains a bounded
+at most eight services. `interval_ms` defaults to 100, `request_timeout_ms` to
+2000 (each accepts 1–60000 ms), and `lease_ms` defaults to 30000 ms for
+transactional timer claims. Reads are bounded and the controller retains a bounded
 observation cache and one exact pending signed request. Transport uncertainty
 retries that request; after process loss, reconciliation inspects original durable
 work. It does not promise exactly one observation message, an empty backlog, or
@@ -769,9 +779,13 @@ private diagnostic capture and contain no credential export.
 
 Observer and lifecycle credentials remain separate. For hosted local children,
 a lifecycle retry waits for the server to stop and join the old worker; the
-acknowledgement names this service boot and exact native generation/failure.
-Provider-bound children retain their confirmed-stop gate through the separate
-`transit-runtime-controller`. Substrate can reuse a cold-booted worker pod;
+acknowledgement names this service boot and exact native or blocked `Actor.Head`
+generation/failure before native `own` and conditional `Actor.Head` unblock
+release the held original input to the replacement worker.
+Provider-bound children retain their confirmed-stop gate (`runtime_intent`
+`.stopped` followed by `binding.phase == .stopped`) through the separate
+`transit-runtime-controller` before requesting restart placement and unblocking
+`Actor.Head`. Substrate can reuse a cold-booted worker pod;
 that pod remains fenced until placement supplies a fresh pod incarnation.
 The server's Station service does not recycle provider capacity. See the
 [reference runtime controller's placement requirement](../../transit-runtime-controller/README.md)

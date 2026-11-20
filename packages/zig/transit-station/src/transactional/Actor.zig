@@ -149,6 +149,7 @@ pub const Head = struct {
     blocked_generation: u64 = 0,
     conflict_retries: u8 = 0,
     held_input: ?HeldInput = null,
+    blocked_input: ?HeldInput = null,
     pending: ?Pending,
     claim_release: ?p.QueueRead.Release = null,
 
@@ -165,6 +166,7 @@ pub const Head = struct {
             .blocked_generation = 0,
             .conflict_retries = 0,
             .held_input = null,
+            .blocked_input = null,
             .pending = null,
             .claim_release = null,
         };
@@ -175,35 +177,32 @@ pub const Head = struct {
         if (!std.mem.eql(u8, &self.actor, &try actor.digest(allocator)) or self.next_turn == 0 or self.completed >= self.next_turn)
             return error.ActorIdentityConflict;
         if (self.blocked and self.held_input != null) return error.ActorIdentityConflict;
+        if (!self.blocked and self.blocked_input != null) return error.ActorIdentityConflict;
         if (self.claim_release) |release| {
             try release.validate();
             if (self.pending != null or !std.meta.eql(release.claim.claim.target, actor.inbox) or
                 !std.meta.eql(release.operation.scope, actor.connection.scope))
                 return error.ActorIdentityConflict;
         }
-        if (self.held_input) |held| {
-            try held.claim.validate();
-            try held.source.validate();
-            try held.lease.validate();
-            if (held.execution_origin) |orig| try orig.validate();
-            if (self.retired or held.claim_turn == 0 or held.claim_turn > self.next_turn or
-                !std.meta.eql(held.source.target, actor.inbox) or !std.meta.eql(held.lease.target, actor.inbox) or
-                !std.meta.eql(held.lease.claim, held.claim.claim.operation))
-                return error.ActorIdentityConflict;
+        inline for (.{ self.held_input, self.blocked_input }) |maybe_held| {
+            if (maybe_held) |held| {
+                try held.claim.validate();
+                try held.source.validate();
+                try held.lease.validate();
+                if (held.execution_origin) |orig| try orig.validate();
+                if (self.retired or held.claim_turn == 0 or held.claim_turn > self.next_turn or
+                    !std.meta.eql(held.source.target, actor.inbox) or !std.meta.eql(held.lease.target, actor.inbox) or
+                    !std.meta.eql(held.lease.claim, held.claim.claim.operation))
+                    return error.ActorIdentityConflict;
+            }
         }
         if (self.pending) |work| {
             try work.begin.validate();
             try work.commit.validate();
             if (work.execution_origin) |orig| try orig.validate();
             const execution = work.begin.execution orelse return error.ActorIdentityConflict;
-            const claim = execution.input orelse return error.ActorIdentityConflict;
-            const predicate_ok = std.meta.eql(claim.predicate, @as(?p.QueuePredicate, actor.predicate)) or
-                (self.held_input != null and claim.predicate == null);
-            const lease_ok = claim.lease_ms == actor.lease_ms or
-                (self.held_input != null and claim.lease_ms == self.held_input.?.claim.claim.lease_ms);
             if (execution.realm != actor.connection.scope.realm or execution.pid != actor.pid or execution.code != actor.code or
-                !std.meta.eql(execution.workload, actor.workload) or !std.meta.eql(claim.target, actor.inbox) or
-                claim.maximum != 1 or !lease_ok or !predicate_ok or
+                !std.meta.eql(execution.workload, actor.workload) or
                 !std.meta.eql(work.commit.scope, actor.connection.scope) or work.commit.principal != execution.principal or work.begin.selection != .explicit_objects)
                 return error.ActorIdentityConflict;
             var expected_buf: [max_targets]p.Transaction.Target = undefined;
@@ -213,19 +212,30 @@ pub const Head = struct {
             const turn = self.next_turn - 1;
             const connection = work.begin.key.connection;
             try work.begin.key.requireSame(token(connection, self.actor, turn));
-            const expected_claim_turn = if (self.held_input) |held| held.claim_turn else turn;
-            const expected_claim_op = if (self.held_input) |held| held.claim.claim.operation else operation(connection, self.actor, expected_claim_turn, "claim", 0);
             if (!std.meta.eql(work.begin.operation, operation(connection, self.actor, turn, "begin", 0)) or
-                !std.meta.eql(work.commit, operation(connection, self.actor, turn, "commit", 0)) or
-                !std.meta.eql(claim.operation, expected_claim_op)) return error.ActorIdentityConflict;
+                !std.meta.eql(work.commit, operation(connection, self.actor, turn, "commit", 0)))
+                return error.ActorIdentityConflict;
+            const ref_claim: p.StreamQueue.Claim = blk: {
+                if (execution.input) |claim| {
+                    if (!std.meta.eql(claim.target, actor.inbox) or claim.maximum != 1 or
+                        claim.lease_ms != actor.lease_ms or !std.meta.eql(claim.predicate, @as(?p.QueuePredicate, actor.predicate)) or
+                        !std.meta.eql(claim.operation, operation(connection, self.actor, turn, "claim", 0)))
+                        return error.ActorIdentityConflict;
+                    break :blk claim;
+                }
+                const preclaimed = if (self.held_input) |held| held.claim.claim else (work.claim orelse return error.ActorIdentityConflict).claim;
+                if (!std.meta.eql(preclaimed.target, actor.inbox) or preclaimed.maximum != 1)
+                    return error.ActorIdentityConflict;
+                break :blk preclaimed;
+            };
             const fingerprint = try p.Json.hashBounded("transit.station.private.turn.v1\x00", .{ .actor = self.actor, .turn = turn, .execution = execution }, 32 * 1024);
             if (!std.mem.eql(u8, &fingerprint, &work.begin.fingerprint)) return error.ActorIdentityConflict;
             if ((work.source != null) != (work.input != null) or (work.source != null) != (work.lease != null) or
                 (work.draft != null and work.source == null) or (work.phase == .committing and work.draft == null)) return error.ActorIdentityConflict;
-            if (work.claim) |receipt| try receipt.requireClaim(claim);
+            if (work.claim) |receipt| try receipt.requireClaim(ref_claim);
             if (work.lease) |lease| {
                 try lease.validate();
-                if (!std.meta.eql(lease.claim, claim.operation) or !std.meta.eql(lease.target, claim.target)) return error.ActorIdentityConflict;
+                if (!std.meta.eql(lease.claim, ref_claim.operation) or !std.meta.eql(lease.target, ref_claim.target)) return error.ActorIdentityConflict;
             }
             if (work.source) |source| {
                 try source.validate();

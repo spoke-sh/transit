@@ -145,9 +145,14 @@ transaction workspace and Queue roots, with unlimited retention by default.
 
 Run the package's `zig build test-transactional` for detached builder checks and
 `just test station-transaction` from the repository root for the installed signed
-caller/fault schedules. These checks do not activate a public transactional
-Station API. Calls/replies, timers, registries, supervision, effect dispatch,
-SDK migration and removal of the old persistence owners remain the
+caller/fault schedules. Alongside basic actor turns, `station_transaction_internal`
+composes authenticated `STN1` calls/replies/cancels over log `Transaction.Origin`
+provenance, optimistic `TransactionConflict` retry, `visible_ms` Timer Queue
+tickets (`Observer`), zero-idle-worker `Pool` multiplexing, conditional
+`Registry` names, bounded `Supervisor` child policies and the server-embedded
+`ServiceController` (`observe` and `lifecycle`). These modules do not activate a
+public transactional Station API yet: effect dispatch, SDK migration and removal
+of the old persistence owners remain the
 [Milestone 6 handoff](../../../docs/roadmap/06-streams-queues-and-durable-runtime.md).
 
 ### Captured turn reads

@@ -215,13 +215,13 @@ catalog owners.
 | --- | --- | --- | ---: | ---: | --- |
 | **A** | 1 | Complete 12-profile log baselines, actor/DLQ/GC pressure proof and frozen removal matrix | — | — | **Delivered (`8dc5df3e1`)** ([evidence](../history/qualification/performance.md#batched-transactional-station-comparison-and-12-profile-streamqueue-baseline--2026-11-18)) |
 | **B** | 1 | Shared multi-statement batching (`stage_batch`/`batch`), claim `release` closure and ~2× turn-cost reduction (`B.3`–`B.4`) | — | — | **Delivered (`8dc5df3e1`)** ([transactions](../history/qualification/transactions.md#shared-multi-statement-batching-and-claim-read-closure--2026-11-18)) |
-| **C** | 1 | Authenticated durable calls, actor-origin correlation and reply waits (`Batch 6a`) | 1–2 | 2–3 | Unblocked (`B` delivered) |
-| **D** | 1 | Durable timers, conditional `Registry` names and `Supervisor` state over server-owned services (`Batch 6b`) | 2 | 2–3.5 | Unblocked (`B` delivered; can overlap `C`) |
-| **E** | 1 | Connector (`HTTP`/`gRPC`/`Flight`/`Exchange`) migration, retained Query consumers and courier retirement (`Batch 7a`) | 2–3 | 2.5–4 | Unblocked (`C`/`D` for actor-triggered effects) |
-| **F** | 1 | Public `Station`/ABI/11-SDK/example/Board cutover and legacy `GenServer`/`Turn` deletion (`Batch 7b`) | 3–4 | 3.5–5.5 | `C`, `D`, `E` + **M7 `C4`/`C5`/`C7`** |
+| **C** | 1 | Authenticated durable calls, actor-origin correlation and reply waits (`Batch 6a`) | — | — | **Delivered** ([plan](station-calls-services-implementation.md)) |
+| **D** | 1 | Durable timers, conditional `Registry` names and `Supervisor` state over server-owned services (`Batch 6b`) | — | — | **Delivered** ([plan](station-calls-services-implementation.md)) |
+| **E** | 1 | Connector (`HTTP`/`gRPC`/`Flight`/`Exchange`) migration, retained Query consumers and courier retirement (`Batch 7a`) | 2–3 | 2.5–4 | Unblocked (`C` and `D` delivered) |
+| **F** | 1 | Public `Station`/ABI/11-SDK/example/Board cutover and legacy `GenServer`/`Turn` deletion (`Batch 7b`) | 3–4 | 3.5–5.5 | `E` + **M7 `C4`/`C5`/`C7`** |
 | **G** | 2 (parallel) | Account-wide single-WAL Table token/commit composition, `TRUNCATE TABLE` and `19 ms` / `10–20 ms` latency (`Batch 8 / R9`) | 2–3 | 2.5–4.5 | Independent (coordinate with M8) |
 | **H** | Closeout | Single-revision full-lane, deployment/MinIO and baseline qualification + handbook promotion (`Batch 9 / R10`) | 1 | 1.5–2.5 | `F` and `G` complete |
-| **Total** | | **Remaining direct work (`C`–`H`) before ~25% contingency** | **11–15** | **12–21.5** | **~15–27 EW with contingency** |
+| **Total** | | **Remaining direct work (`E`–`H`) before ~25% contingency** | **8–11** | **8–16.5** | **~10–21 EW with contingency** |
 
 ---
 
