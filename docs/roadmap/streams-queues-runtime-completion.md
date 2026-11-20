@@ -52,14 +52,17 @@ source-attributed evidence. Milestone 6 remains **In Progress**.
 
 ## How much work remains
 
-With **Units A and B** delivered on this slice (`8dc5df3e1`, cutting private
+With **Units A and B** merged in [PR #471](https://github.com/spoke-sh/transit/pull/471)
+(`70dc36d57`, cutting private
 transactional Station turn latency from `12,015.7 ms` median / `19,272.0 ms` p95
 to `6,018.2 ms` / `8,355.6 ms` and completing all 12 `log-runtime-baseline`
 profiles plus actor/DLQ/GC pressure checks), plan for **11–15 remaining review
 units** and **12–21.5 engineer-weeks of direct work** (**roughly 15–27
 engineer-weeks** allowing ~25% for integration, fault-schedule debugging and
 performance tuning), down from the initial 13–18 review units / 14.5–25.5 direct
-engineer-weeks at `c1f2680d9` (and 15–21 / 19–32 on November 12). These are engineering planning
+engineer-weeks at `c1f2680d9` (and 15–21 / 19–32 on November 12). The next
+Track 1 implementation slice—[transactional calls, timers, names and supervision](station-calls-services-implementation.md)
+(**Units C and D**, `3–4` review units)—is drafted at `f31673bbd`. These are engineering planning
 ranges, not measured velocity, and they **exclude** implementing
 [Milestone 7](07-document-storage-and-station-decoupling.md)'s
 `DocumentPartition` (`C4`/`C5`/`C7`) itself.
@@ -552,10 +555,11 @@ flowchart LR
 ```
 
 Solid arrows show M6's internal ordering; dashed arrows show external milestone
-boundaries. **Recommended immediate execution order:** start **Unit A** and
-**Unit B (`B.3`–`B.4`)** on Track 1 while running **Unit G (`G.1`–`G.2`)** in
-parallel on Track 2, then fan out across **C**, **D** and **E** once `B` locks
-the batched shared transaction API and turn-cost budget.
+boundaries. **Recommended immediate execution order:** with **Units A and B**
+merged in `#471`, execute **Units C and D**
+([calls and services slice plan](station-calls-services-implementation.md)) on
+Track 1 while running **Unit G (`G.1`–`G.2`)** in parallel on Track 2, then
+follow with **Unit E** and **Unit F**.
 
 ### Key decisions for review
 
