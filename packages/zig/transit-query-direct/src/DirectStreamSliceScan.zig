@@ -256,6 +256,7 @@ test "direct STREAM_SLICE relational compilation, star expansion, tombstone filt
                             out.* = .{
                                 .offset = index + at,
                                 .operation = self.operation,
+                                .execution = null,
                                 .ordinal = row.ordinal,
                                 .tombstone = row.tombstone,
                                 .encoded = try w.Binary.encode(invocation.allocator, row.bytes),

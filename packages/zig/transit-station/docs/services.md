@@ -89,3 +89,32 @@ minimal profile.
 casts. `just test::station` checks a registry rebind before delivery, timeout
 across worker replacement, late reply closure, separate observer/admin grants,
 supervisor restart, bounded poisoned-input retry and permanent retirement.
+
+## Declared-data transactional profile
+
+Inside the internal transactional Station composition (`src/transactional/`),
+these same `RGS1`/`RGR1`/`RGQ1`, `TMO1` and `SUC1`/`SUP1` policies run over
+declared `KV`, `Table`, `Stream` and `Queue` participants under `TXDEC1`
+transactions and native `Transaction.Execution` / `Transaction.Origin` fences:
+
+- **Authenticated message provenance:** `Envelope` (`STE1`) verifies `call`,
+  `reply` and `cancel` sender PIDs against `LogEvidence.Record.execution`
+  (`row.execution != null`), and verifies `TMO1` timeouts and `SUP1` lifecycle
+  observations against external observer principals (`row.execution == null` and
+  `row.operation.principal == expected_observer`).
+- **Timer Queue scheduling and zero-worker idle parking:** `Turn.callWithTimer`
+  and `Supervisor.observe` append `Timer.Ticket` records (`visible_ms =
+  deadline_ms`) to an optional declared `timers` `Queue` in the same
+  `write_batch` as state and outbound mailbox mutations. `Observer` claims due
+  tickets via `QueueWait`, checks authoritative `Queue.current_time` and native
+  process liveness, and delivers idempotent `TMO1`/`SUP1` frames without KV
+  page scans. `Pool` multiplexes bounded active `Runner` slots over shared
+  `key_fifo` inboxes while keeping idle actors at zero resident `Runner` memory.
+- **Transactional `Registry` and `Supervisor`:** `Registry` preserves scoped
+  `Subject` grants, `expected_revision` CAS, durable tombstones and single-turn
+  `route` / `routeCall` resolution commits. `Supervisor` preserves the 4-child
+  bound, `0..16` retry limit, Timer Queue backoffs, stop-before-retry generation
+  updates without double-charging `attempts`, `.exhausted` retention, `.retired`
+  finality and conditional `replace` successor binding. `just test
+  station-transaction` qualifies these contracts over live storage and native
+  PID authority.

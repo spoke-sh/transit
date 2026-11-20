@@ -220,7 +220,7 @@ class ApplicationFaults:
 def run(node, caller, mode="tables", *artifacts):
     if mode not in ("station-transaction", "log-baseline", "tables", "managed", "managed-board", "managed-board-browser", "queues", "kv", "state-transaction", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "log-token", "workload-token", "workload-result", "maintenance", "stream-maintenance", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
         raise ValueError("Unknown direct service proof mode")
-    if mode in ("state-transaction", "mixed-transaction"):
+    if mode in ("state-transaction", "mixed-transaction", "station-transaction"):
         assert len(artifacts) in (0, 1)
     else:
         assert len(artifacts) == (2 if mode in ("abi", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("log-baseline", "managed-board", "managed-board-browser") else 0)
@@ -768,16 +768,26 @@ def run(node, caller, mode="tables", *artifacts):
             authority = start()
             if mode == "station-transaction":
                 from runtime.station.transactional import exercise
-                def actor_restart():
+                def actor_restart(maintenance=False):
                     nonlocal authority
                     authority.kill()
                     authority.wait(timeout=15)
+                    if maintenance:
+                        settings["maintenance"] = {"principal": 0, "seed_file": str(seed), "interval_ms": 25, "operation_timeout_ms": 10000}
+                        settings["storage"] = {"maintenance": {"collection_every_records": 1_000_000_000,
+                                                               "flush": {"enabled": False},
+                                                               "archive": {"enabled": False},
+                                                               "compact": False}}
+                    else:
+                        settings.pop("maintenance", None)
+                        settings.pop("storage", None)
+                    config.write_text(json.dumps(settings))
                     authority = start()
                 if os.environ.get("TRANSIT_STATION_TRANSACTION_BASELINE"):
                     from performance.load.station_transaction import measure
                     measure(node, caller, root, profile, url, actor_restart, lambda: authority)
                 else:
-                    exercise(node, caller, root, profile, url, actor_restart)
+                    exercise(node, caller, root, profile, url, actor_restart, artifacts[0] if artifacts else None)
                 return
             if mode == "log-baseline":
                 from performance.storage.log_runtime import exercise

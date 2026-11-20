@@ -108,16 +108,20 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`f311e893f8d2f4c21f426790172fadfebe7eb2364615eb1566c09f11d39bb0bb`.
+`7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5`.
 
-This definition binds multi-schema ordered `ApplicationProgram` declarations and
+This definition binds optional authority-fenced `Transaction.Origin` provenance
+on execution-guarded transactional Stream and Queue batch evidence (`LOGEVID1`)
+and row read surfaces (`DirectQueue.Row` and `DirectStream.Row`), while keeping
+direct non-transactional appends and unguarded transactions explicitly null. It
+also binds multi-schema ordered `ApplicationProgram` declarations and
 `ApplicationBinding` resource descriptors (optional `schema` qualification on
 programs, instructions, controls and cross-schema dependencies, plus typed
 `UUID`/`TIMESTAMP`/binary program literals) together with multi-schema
 `transit_table_basis_v1` migration bases (`schemas` and per-table `schema`
-bindings). It also binds the native storage owner, optional immutable object tier,
-required nullable tier observations and removal of Ursula configuration. Retired
-remote generations retain permanent empty envelopes that fence delayed PUTs.
+bindings), the native storage owner, optional immutable object tier, required
+nullable tier observations and removal of Ursula configuration. Retired remote
+generations retain permanent empty envelopes that fence delayed PUTs.
 Retained
 WAL, allocation inventories, upload progress and namespace identities remain
 mandatory; a bucket alone cannot restore accepted work. This is a hard cutover

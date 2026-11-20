@@ -247,7 +247,7 @@ test "workload reader retains projected cells and original coverage through lost
                     var encoded_bytes: u32 = 0;
                     for (rows, 0..) |*output_row, at| {
                         const row = self.rows[@intCast(index + at)];
-                        output_row.* = .{ .offset = index + at, .operation = self.operation, .ordinal = row.ordinal, .tombstone = false, .encoded = try w.Binary.encode(invocation.allocator, row.bytes) };
+                        output_row.* = .{ .offset = index + at, .operation = self.operation, .execution = null, .ordinal = row.ordinal, .tombstone = false, .encoded = try w.Binary.encode(invocation.allocator, row.bytes) };
                         encoded_bytes += @intCast(row.bytes.len + s.LogBatch.row_header_bytes);
                     }
                     const next = self.cursor(index + count);

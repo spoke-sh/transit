@@ -23,7 +23,7 @@ pub const Action = union(enum) {
         };
     }
 };
-pub const Row = struct { offset: u64, operation: p.DataLifecycle.Operation, tombstone: bool, value: c.fuze.TableRow.Row };
+pub const Row = struct { offset: u64, operation: p.DataLifecycle.Operation, execution: ?p.Transaction.Origin, tombstone: bool, value: c.fuze.TableRow.Row };
 pub const Page = struct {
     source: c.DirectLogClient.Metadata,
     rows: []const Row,
@@ -97,6 +97,7 @@ pub fn apply(output: *std.heap.ArenaAllocator, client: c.DirectTableClient, acti
                 row.* = .{
                     .offset = encoded.offset,
                     .operation = encoded.operation,
+                    .execution = encoded.execution,
                     .tombstone = encoded.tombstone,
                     .value = decoded.row(),
                 };

@@ -184,6 +184,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         materialized_state: RecoveryState,
         ready: bool = false,
         private_position: ?d.Position = null,
+        private_execution: ?p.Transaction.Origin = null,
         candidate_objects: if (kind == .queue) *CandidateObjects else void,
         queue_container: if (kind == .queue) Bitmap.Container else void,
         queue_leases: if (kind == .queue) []q.Lease else void,
@@ -490,16 +491,18 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         }
         /// Build an immutable successor while borrowing this serialized owner's
         /// bounded caches. No WAL acceptance or externally visible root changes.
-        pub fn evaluateTransaction(self: *Self, handle: p.Transaction.Pin, directory: p.Transaction.Directory, limits: Transaction.EvaluationLimits, authority: ?Read.Authority, guard: Guard) !Transaction.Evaluation {
+        pub fn evaluateTransaction(self: *Self, handle: p.Transaction.Pin, directory: p.Transaction.Directory, limits: Transaction.EvaluationLimits, execution: ?p.Transaction.Origin, authority: ?Read.Authority, guard: Guard) !Transaction.Evaluation {
             try limits.validate();
+            if (execution) |origin| try origin.validate();
             if (self.private_position != null) return error.PrivateLogWorkspace;
             if (self.root.transaction != null) return error.TransactionPrepared;
             var memory: f.MemoryBudget = .{ .parent = self.allocator, .limit = limits.resident_bytes };
-            const result = self.evaluateTransactionBounded(memory.allocator(), handle, directory, limits, authority, guard) catch |err| return if (memory.exhausted) error.TransactionMemoryLimit else err;
+            const result = self.evaluateTransactionBounded(memory.allocator(), handle, directory, limits, execution, authority, guard) catch |err| return if (memory.exhausted) error.TransactionMemoryLimit else err;
             return .{ .root = result.root, .observed = result.observed, .resident_peak = memory.peak };
         }
-        fn evaluateTransactionBounded(self: *Self, allocator: std.mem.Allocator, handle: p.Transaction.Pin, directory: p.Transaction.Directory, limits: Transaction.EvaluationLimits, authority: ?Read.Authority, guard: Guard) !Transaction.Evaluation {
+        fn evaluateTransactionBounded(self: *Self, allocator: std.mem.Allocator, handle: p.Transaction.Pin, directory: p.Transaction.Directory, limits: Transaction.EvaluationLimits, execution: ?p.Transaction.Origin, authority: ?Read.Authority, guard: Guard) !Transaction.Evaluation {
             const source = try self.inspectTransactionSource(handle, guard);
+            if (execution) |origin| if (!std.meta.eql(origin.transaction, source.identity.begin)) return error.TransactionIdentityConflict;
             const basis = try source.guard();
             try basis.requireUnchanged(try Transaction.logGuard(self.root));
             for (self.cache.held) |held| if (held != null) return error.OutstandingTailBorrows;
@@ -525,6 +528,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             const ordinary = self.enterControl(false);
             const eval_mark = if (kind == .queue) self.candidate_objects.mark() else {};
             self.private_position = prospective;
+            self.private_execution = execution;
             self.allocator = allocator;
             self.store.allocator = allocator;
             self.scratch = .init(allocator);
@@ -537,6 +541,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 self.scratch.deinit();
                 self.scratch = saved_scratch;
                 self.private_position = null;
+                self.private_execution = null;
                 if (kind == .queue) self.candidate_objects.rollback(eval_mark);
                 self.leaveControl(ordinary);
                 if (kind == .queue) self.store.clearDerived() else self.store.clearCache();
@@ -593,6 +598,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             // A terminal transfer exists only inside a private successor whose
             // paired destination append shares the transaction's decision.
             if (record.action == .operation and record.action.operation.outcome == .terminal) return error.InvalidLogPreparation;
+            if (record.action == .operation and record.action.operation.execution != null) return error.InvalidLogHistory;
             const before = self.root;
             const after = record.root;
             const reference = if (record.action == .transaction_prepare) after.transaction else before.transaction;
@@ -656,7 +662,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             if (participant != .log or !std.meta.eql(participant.log.guard, basis) or
                 !std.meta.eql(participant.log.actions, @as(?p.Transaction.Directory, directory))) return error.InvalidLogPreparation;
             try self.materializeQueueRoot(self.root);
-            const evaluated = try self.evaluateTransaction(pin, directory, limits, authority, guard);
+            const evaluated = try self.evaluateTransaction(pin, directory, limits, try binding.begin.origin(), authority, guard);
             const preparation: Transaction.Preparation = .{
                 .definition = p.Growth.current_definition,
                 .coordination = coordination,
@@ -856,7 +862,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 return record;
             }
             try self.ensureQueueCheckpointHeadroom(true, guard);
-            const record: Evidence.Record = .{ .declared = declared, .outcome = .{ .closed = .{
+            const record: Evidence.Record = .{ .declared = declared, .execution = null, .outcome = .{ .closed = .{
                 .binding = binding,
                 .recorded = try self.nextPosition(),
                 .reason = reason,
@@ -937,7 +943,8 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             try self.ensureQueueCheckpointHeadroom(false, guard);
             const observed_ms = try Time.observe(self.options.clock, self.root.clock_ms, declared.declaration.configuration.retention.max_age_ms != null);
             const receipt: q.AppendReceipt = .{ .append = request, .first = self.root.next_offset, .next = std.math.add(u64, self.root.next_offset, request.rows) catch return error.LogOffsetExhausted, .accepted = try self.nextPosition(), .observed_ms = observed_ms };
-            try self.publish(.{ .declared = declared, .outcome = .{ .append = receipt } }, payload, guard);
+            if (self.private_position == null and self.private_execution != null) return error.InvalidLogEvidence;
+            try self.publish(.{ .declared = declared, .execution = self.private_execution, .outcome = .{ .append = receipt } }, payload, guard);
             return receipt;
         }
         fn queueIndex(self: *Self, bitmap: *Bitmap) QueueIndex {
@@ -1120,7 +1127,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 try meta.receipt(Batch.content(selection_bytes))
             else
                 try QueueClaims.receipt(meta, &.{}, &.{});
-            try self.publishClaim(.{ .declared = declared, .outcome = .{ .claim = .{ .receipt = receipt, .observed = now } } }, selection_bytes, leases, guard);
+            try self.publishClaim(.{ .declared = declared, .execution = null, .outcome = .{ .claim = .{ .receipt = receipt, .observed = now } } }, selection_bytes, leases, guard);
             return receipt;
         }
         const ClaimFilter = struct {
@@ -1220,7 +1227,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             if (try self.claimReadReleased(request.claim)) return error.QueueReadReleased;
             try self.ensureQueueCheckpointHeadroom(true, guard);
             const receipt: queue_read.ReleaseReceipt = .{ .release = request, .accepted = try self.nextPosition() };
-            try self.publish(.{ .declared = declared, .outcome = .{ .queue_release = receipt } }, &.{}, guard);
+            try self.publish(.{ .declared = declared, .execution = null, .outcome = .{ .queue_release = receipt } }, &.{}, guard);
             return receipt;
         }
 
@@ -1228,6 +1235,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         pub const ClaimReadRow = struct {
             lease: queue_read.LeaseObservation,
             operation: d.Operation,
+            execution: ?p.Transaction.Origin,
             ordinal: u32,
             visible_ms: u64,
             encoded: []const u8,
@@ -1317,7 +1325,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                         if (page.len == 0) return error.QueueReadBudgetExceeded;
                         break;
                     }
-                    page.entries[page.len] = .{ .lease = observed, .operation = borrowed.receipt.append.operation, .ordinal = row.ordinal, .visible_ms = row.visible_ms, .encoded = try output.dupe(u8, row.bytes) };
+                    page.entries[page.len] = .{ .lease = observed, .operation = borrowed.receipt.append.operation, .execution = borrowed.execution, .ordinal = row.ordinal, .visible_ms = row.visible_ms, .encoded = try output.dupe(u8, row.bytes) };
                     page.len += 1;
                     page.cursor.next += 1;
                     page.encoded_bytes += @intCast(row.bytes.len);
@@ -1346,7 +1354,8 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             const item = try index.item(self.root.queue.?, request.lease.offset);
             _ = try item.settle(try index.state(self.root.queue.?, item), request, declared.declaration.configuration.policy.queue, now);
             const receipt: q.SettlementReceipt = .{ .settlement = request, .accepted = try self.nextPosition() };
-            try self.publish(.{ .declared = declared, .outcome = .{ .settlement = .{ .receipt = receipt, .observed = now } } }, &.{}, guard);
+            if (self.private_position == null and self.private_execution != null) return error.InvalidLogEvidence;
+            try self.publish(.{ .declared = declared, .execution = self.private_execution, .outcome = .{ .settlement = .{ .receipt = receipt, .observed = now } } }, &.{}, guard);
             return receipt;
         }
         fn transferOffset(request: p.Transaction.TerminalTransfer) u64 {
@@ -1371,7 +1380,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             // buffer can be reused by the terminal record below.
             try self.verifyTransferPayload(request, self.encoded[0..self.options.batch_bytes], guard);
             const receipt: p.Transaction.TerminalReceipt = .{ .transfer = request, .accepted = try self.nextPosition() };
-            try self.publish(.{ .declared = declared, .outcome = .{ .terminal = .{ .receipt = receipt, .observed = now } } }, &.{}, guard);
+            try self.publish(.{ .declared = declared, .execution = self.private_execution, .outcome = .{ .terminal = .{ .receipt = receipt, .observed = now } } }, &.{}, guard);
             return receipt;
         }
         /// Re-encode the source's verified logical values under the exact
@@ -1658,7 +1667,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             }
             try assignment.requireCurrent(try self.progress(assignment.group.id), try self.root.cut(declared));
             const receipt: q.GroupAssignmentReceipt = .{ .assignment = assignment, .accepted = try self.nextPosition() };
-            try self.publish(.{ .declared = declared, .outcome = .{ .assignment = receipt } }, &.{}, guard);
+            try self.publish(.{ .declared = declared, .execution = null, .outcome = .{ .assignment = receipt } }, &.{}, guard);
             return receipt;
         }
 
@@ -1716,7 +1725,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             }
             const basis = try self.readBasis(declared, request);
             const receipt = try Read.stage(self.objects, basis);
-            try self.publish(.{ .declared = declared, .outcome = .{ .read = receipt } }, &.{}, guard);
+            try self.publish(.{ .declared = declared, .execution = null, .outcome = .{ .read = receipt } }, &.{}, guard);
             return receipt;
         }
         pub fn releaseRead(self: *Self, declared: Declaration.Stored, request: read.Release, guard: Guard) !read.ReleaseReceipt {
@@ -1734,7 +1743,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             const retained = try self.retainedRead(request.read);
             try request.target.requireSame(retained.receipt.request.target);
             const receipt: read.ReleaseReceipt = .{ .release = request, .accepted = try self.nextPosition() };
-            try self.publish(.{ .declared = declared, .outcome = .{ .release = receipt } }, &.{}, guard);
+            try self.publish(.{ .declared = declared, .execution = null, .outcome = .{ .release = receipt } }, &.{}, guard);
             return receipt;
         }
         fn advanceGroup(self: *Self, commit: q.OffsetCommit, issued: read.Progress) !q.GroupProgress {
@@ -1763,7 +1772,8 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             try authority.verifyProgress(issued);
             _ = try self.advanceGroup(commit, issued);
             const receipt: q.OffsetReceipt = .{ .commit = commit, .accepted = try self.nextPosition() };
-            try self.publish(.{ .declared = declared, .outcome = .{ .offset = .{ .receipt = receipt, .progress = issued } } }, &.{}, guard);
+            if (self.private_position == null and self.private_execution != null) return error.InvalidLogEvidence;
+            try self.publish(.{ .declared = declared, .execution = self.private_execution, .outcome = .{ .offset = .{ .receipt = receipt, .progress = issued } } }, &.{}, guard);
             return receipt;
         }
         fn nextPosition(self: *Self) !d.Position {
@@ -2935,6 +2945,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         pub const BorrowedBatch = struct {
             cut: q.Cut,
             receipt: q.AppendReceipt,
+            execution: ?p.Transaction.Origin,
             payload: Tail.Borrow,
             layout: Segment.Layout,
             pub fn iterator(self: *BorrowedBatch, schema: f.TableSchema.Schema) !Batch.Rows {
@@ -3017,7 +3028,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 try Segment.requireVisibility(value, try result.bytes(), declaration.definition.schema, receipt, &self.store, hidden);
             };
             try authorize(guard);
-            return .{ .cut = cut, .receipt = receipt, .payload = result, .layout = if (segment) |value| value.layout else .complete };
+            return .{ .cut = cut, .receipt = receipt, .execution = evidence.execution, .payload = result, .layout = if (segment) |value| value.layout else .complete };
         }
 
         pub fn readCursor(self: *Self, handle: read.Handle, authority: Read.Authority, guard: Guard) !read.Cursor {
@@ -3033,6 +3044,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         pub const ReadRow = struct {
             offset: u64,
             operation: d.Operation,
+            execution: ?p.Transaction.Origin,
             encoded: Batch.EncodedRow,
         };
         pub const ReadPage = struct {
@@ -3131,7 +3143,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                     }
                     var copied = row;
                     copied.bytes = try output.dupe(u8, row.bytes);
-                    result.storage[result.count] = .{ .offset = offset, .operation = batch.receipt.append.operation, .encoded = copied };
+                    result.storage[result.count] = .{ .offset = offset, .operation = batch.receipt.append.operation, .execution = batch.execution, .encoded = copied };
                     result.count += 1;
                     result.encoded_bytes += @intCast(bytes);
                     coverage.through += 1;

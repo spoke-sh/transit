@@ -992,6 +992,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") },
         .{ .name = "transit_http_server", .module = http_server.module("transit_http_server") },
         .{ .name = "transit_serving_http", .module = serving_http.module("transit_serving_http") },
+        .{ .name = "station_transaction_internal", .module = station.module("station_transaction_internal") },
         .{ .name = "transit_test_protocol", .module = b.dependency("transit_test_protocol", .{ .target = target, .optimize = optimize }).module("transit_test_protocol") },
         .{ .name = "transit_test", .module = b.dependency("transit_test", .{ .target = target, .optimize = optimize }).module("transit_test") },
     } });
@@ -1607,6 +1608,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     transactional_station.addArtifactArg(authority_fixture);
     transactional_station.addArtifactArg(direct_table_client);
     transactional_station.addArg("station-transaction");
+    transactional_station.addArtifactArg(transit_cli);
     transactional_station.has_side_effects = true;
     transactional_station.stdio = .inherit;
     b.step("test-station-transaction", "Prove private transactional behavior and original recovery over installed disk owners").dependOn(&transactional_station.step);

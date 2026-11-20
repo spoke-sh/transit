@@ -21,7 +21,7 @@ test "log segment sparse placement preserves identities in native tseg system co
     var input: [8192]u8 = undefined;
     const payload = try s.LogBatch.encode(definition.schema, operation, .stream, &rows, &input);
     const append: p.StreamQueue.Append = .{ .target = .{ .definition = p.Growth.current_definition, .interpretation = declared.declaration.interpretation, .partition = 1 }, .operation = operation, .kind = .stream, .producer = null, .rows = rows.len, .payload = s.LogBatch.content(payload) };
-    const evidence: s.LogEvidence.Record = .{ .declared = declared, .outcome = .{ .append = .{ .append = append, .first = 100, .next = 106, .accepted = .{ .partition = 91, .next_lsn = 7 }, .observed_ms = null } } };
+    const evidence: s.LogEvidence.Record = .{ .declared = declared, .execution = null, .outcome = .{ .append = .{ .append = append, .first = 100, .next = 106, .accepted = .{ .partition = 91, .next_lsn = 7 }, .observed_ms = null } } };
     var encoded: [8192]u8 = undefined;
     var encoder = try s.LogBatch.SparseEncoder.init(definition.schema, 6, 2, &encoded);
     var surviving: [2]s.LogBatch.EncodedRow = undefined;
@@ -86,7 +86,7 @@ test "log segment disk readback preserves original payload identity and delivery
             .{ .cells = &second, .tombstone = kind == .stream },
         }, &input);
         const append: p.StreamQueue.Append = .{ .target = .{ .definition = p.Growth.current_definition, .interpretation = declared.declaration.interpretation, .partition = 1 }, .operation = operation, .kind = if (kind == .stream) .stream else .queue, .producer = null, .rows = 2, .payload = s.LogBatch.content(payload) };
-        const evidence: s.LogEvidence.Record = .{ .declared = declared, .outcome = .{ .append = .{ .append = append, .first = 100, .next = 102, .accepted = .{ .partition = 91, .next_lsn = 7 }, .observed_ms = null } } };
+        const evidence: s.LogEvidence.Record = .{ .declared = declared, .execution = null, .outcome = .{ .append = .{ .append = append, .first = 100, .next = 102, .accepted = .{ .partition = 91, .next_lsn = 7 }, .observed_ms = null } } };
         const segment = try s.LogSegment.stage(t.allocator, objects.objectStore(), &declaration, evidence, payload, 1);
         try t.expectEqualDeep(segment, try s.LogSegment.Descriptor.decode(try segment.encode()));
         objects.deinit();

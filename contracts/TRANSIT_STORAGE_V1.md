@@ -1869,7 +1869,10 @@ empty Queue claims and other `manifest_checkpoint` records carry zero trailing p
 WAL frontier, while only append allocates logical offsets.
 
 Original outcomes are immutable `log-evidence/{sha256}.data` objects: `LOGEVID1`,
-the shared definition and canonical JSON for the exact declaration and receipt.
+the shared definition and canonical JSON for the exact declaration, mandatory
+nullable `execution` provenance (`Transaction.Origin`, present only when
+published by an execution-guarded `TXDEC1` transaction decision and null on
+every standalone `.operation` WAL frame or unguarded transaction) and receipt.
 The entire object is bounded to 16 KiB. Directory values encode its byte length
 as big-endian `u64` followed by its SHA-256. Operation keys are the original
 principal and operation as big-endian `u64` values, scoped by the partition's

@@ -4276,13 +4276,14 @@ const TransactionTransferAdvance = struct { guard: p.Transaction.LogGuard, previ
 fn evaluateTransactionLogStatement(self: *Self, definition: L.Definition, selected: TransactionLogSources, destination_previous: ?p.Transaction.Directory, transfer_access: *?TransactionTransferAccess, request: TransactionLogWork.Request, begin: p.Transaction.Begin, directory: p.Transaction.Directory, payload: ?[]const u8, guard_value: P.Guard) !?TransactionTransferAdvance {
     const environment = if (self.log_environment) |value| value.* else c.DirectTransactionLog.Environment{};
     const limits = TransactionLogWork.evaluationLimits(begin, request.statement.sequence);
+    const origin = try begin.origin();
     {
         const target = (p.Transaction.Guard{ .log = request.guard }).target();
         const source = selected.source;
         var view = try self.transactionLogView(definition, target.partition.?, guard_value);
         defer view.deinit();
         view.clock(environment.clock);
-        _ = try view.evaluate(source.pin, directory, limits, environment.authority, guard_value);
+        _ = try view.evaluate(source.pin, directory, limits, origin, environment.authority, guard_value);
     }
     if (transfer_access.*) |*access| {
         const source = selected.destination.?;
@@ -4297,7 +4298,7 @@ fn evaluateTransactionLogStatement(self: *Self, definition: L.Definition, select
         var destination = try self.transactionLogView(access.definition, target.partition.?, access.read.guard());
         defer destination.deinit();
         destination.clock(environment.clock);
-        _ = try destination.evaluate(source.pin, next, limits, environment.authority, access.write.guard());
+        _ = try destination.evaluate(source.pin, next, limits, origin, environment.authority, access.write.guard());
         try access.checkCurrent();
         return .{ .directory = next, .previous = destination_previous, .guard = source.guard.log };
     }

@@ -85,6 +85,7 @@ pub const Receipt = union(enum) { enqueue: q.AppendReceipt, claim: q.ClaimReceip
 pub const Row = struct {
     lease: read.LeaseObservation,
     operation: d.Operation,
+    execution: ?p.Transaction.Origin,
     ordinal: u32,
     visible_ms: u64,
     encoded: w.Binary,
@@ -266,7 +267,7 @@ fn applyOriginal(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog:
             var copied: usize = 0;
             errdefer for (rows[0..copied]) |row| output.free(row.encoded.base64);
             for (page.rows(), rows) |source, *row| {
-                row.* = .{ .lease = source.lease, .operation = source.operation, .ordinal = source.ordinal, .visible_ms = source.visible_ms, .encoded = try w.Binary.encode(output, source.encoded) };
+                row.* = .{ .lease = source.lease, .operation = source.operation, .execution = source.execution, .ordinal = source.ordinal, .visible_ms = source.visible_ms, .encoded = try w.Binary.encode(output, source.encoded) };
                 copied += 1;
             }
             break :blk .{ .page = .{ .source = .{ .declaration = definition, .schema = schema }, .basis = page.basis, .rows = rows, .cursor = page.cursor, .encoded_bytes = page.encoded_bytes } };

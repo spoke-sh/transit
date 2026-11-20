@@ -12,6 +12,7 @@ pub const max_bytes = 16 * 1024;
 
 pub const Record = struct {
     declared: Declaration.Stored,
+    execution: ?p.Transaction.Origin,
     outcome: union(enum) {
         append: q.AppendReceipt,
         assignment: q.GroupAssignmentReceipt,
@@ -62,6 +63,16 @@ pub const Record = struct {
     }
     pub fn validate(self: Record) !void {
         try self.declared.validate();
+        if (self.execution) |origin| {
+            origin.validate() catch return error.InvalidLogEvidence;
+            switch (self.outcome) {
+                .append, .offset, .settlement, .terminal => {},
+                .assignment, .read, .release, .claim, .queue_release, .closed => return error.InvalidLogEvidence,
+            }
+            const op = self.operation();
+            if (!std.meta.eql(origin.transaction.scope, op.scope) or origin.principal != op.principal or std.meta.eql(origin.transaction, op))
+                return error.InvalidLogEvidence;
+        }
         switch (self.outcome) {
             .offset => |value| {
                 try value.receipt.validate();

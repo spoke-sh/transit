@@ -4950,6 +4950,102 @@ test "transaction native recovery closes only its frozen original Queue acquisit
     }
 }
 
+test "execution-guarded transaction log appends record process origin while direct and unguarded appends stay null" {
+    const Native = struct {
+        fn verify(_: *anyopaque, _: p.Transaction.Execution, _: bool) !void {}
+        fn policy(access: *Access) D.Policy {
+            var result = access.policy();
+            result.execution = .{ .context = access, .verify = verify };
+            return result;
+        }
+    };
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{ .exclusive = true };
+    var clock: QueueClock = .{};
+    const environment: c.DirectTransactionLog.Environment = .{ .clock = clock.source(), .authority = try s.LogRead.Authority.init(@splat(4)) };
+    catalog.log_environment = &environment;
+    try catalog.initialize(access.policy());
+    const template = try selectTransactionKinds(&catalog, &access, .serializable, false, false);
+    const stream_def = (try catalog.resolveLog(1, try .init("events"), access.policy())).?;
+    const queue_def = (try catalog.resolveLog(1, try .init("work"), access.policy())).?;
+    const stream_target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = stream_def.stored.declaration.interpretation, .partition = 0 };
+    const queue_target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = queue_def.stored.declaration.interpretation, .partition = 0 };
+    const log_schema: c.fuze.TableSchema.Schema = .{ .object = 12, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{} };
+    const stream_schema: c.fuze.TableSchema.Schema = .{ .object = 11, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{} };
+    var stream_cache: ?c.DirectStream.Cached = null;
+    defer if (stream_cache) |*cached| cached.deinit();
+    var queue_cache: ?c.DirectQueue.Cached = null;
+    defer if (queue_cache) |*cached| cached.deinit();
+    const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 42 } } }};
+    var buf: [8192]u8 = undefined;
+
+    // 1. Direct foreground appends always record execution == null.
+    var scratch: std.heap.ArenaAllocator = .init(t.allocator);
+    defer scratch.deinit();
+    const direct_q_op: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 9801 };
+    const direct_q_bytes = try s.LogBatch.encode(log_schema, direct_q_op, .queue, &.{.{ .cells = &cells }}, &buf);
+    _ = try queueCall(&catalog, &access, &queue_cache, &clock, .{ .mutate = .{ .work = .{ .enqueue = .{ .target = queue_target, .operation = direct_q_op, .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(direct_q_bytes) } }, .payload = try c.DirectTableProtocol.Binary.encode(scratch.allocator(), direct_q_bytes) } }, 256);
+    const direct_s_op: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 9802 };
+    const direct_s_bytes = try s.LogBatch.encode(stream_schema, direct_s_op, .stream, &.{.{ .cells = &cells }}, &buf);
+    _ = try streamCall(&catalog, &access, &stream_cache, .{ .mutate = .{ .work = .{ .append = .{ .target = stream_target, .operation = direct_s_op, .kind = .stream, .producer = null, .rows = 1, .payload = s.LogBatch.content(direct_s_bytes) } }, .payload = try c.DirectTableProtocol.Binary.encode(scratch.allocator(), direct_s_bytes) } }, 256);
+
+    // 2. Unguarded transaction appends (execution == null) also record execution == null.
+    var unguarded_key = template.binding.key;
+    unguarded_key.token = @splat(71);
+    _ = try catalog.beginTransaction(.{ .key = unguarded_key, .fingerprint = @splat(72), .operation = .{ .scope = scope, .principal = 1, .operation = 9810 }, .namespace = 1, .mode = .serializable, .deadline = null, .execution = null, .selection = .{ .explicit_objects = &.{ .{ .object = stream_target.interpretation.object, .kind = .stream, .partition = 0 }, .{ .object = queue_target.interpretation.object, .kind = .queue, .partition = 0 } } }, .limits = c.DirectTransaction.default_limits, .budget = template.binding.budget }, access.policy());
+    _ = try catalog.acquireTransaction(unguarded_key, access.policy());
+    const unguarded_q_op: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 9811 };
+    const unguarded_q_bytes = try s.LogBatch.encode(log_schema, unguarded_q_op, .queue, &.{.{ .cells = &cells }}, &buf);
+    const staged_uq = try catalog.stageTransactionLog(unguarded_key, (try catalog.inspectTransaction(unguarded_key, access.policy())).revision, 1, .{ .append = .{ .target = queue_target, .operation = unguarded_q_op, .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(unguarded_q_bytes) } }, unguarded_q_bytes, access.policy());
+    _ = try catalog.executeTransactionLog(unguarded_key, staged_uq, access.policy());
+    try t.expectEqual(.committed, (try catalog.settleTransaction(unguarded_key, .{ .scope = scope, .principal = 1, .operation = 9812 }, .commit, 16, access.policy())).observation.decided.outcome);
+
+    // 3. Execution-guarded transaction appends record exact Transaction.Origin (omitting input).
+    var guarded_key = template.binding.key;
+    guarded_key.token = @splat(73);
+    const begin_op: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 9820 };
+    const inbound_claim: p.StreamQueue.Claim = .{ .target = queue_target, .operation = .{ .scope = scope, .principal = 1, .operation = 9821 }, .maximum = 1, .lease_ms = 100, .predicate = null };
+    const inbound_receipt = (try queueCall(&catalog, &access, &queue_cache, &clock, .{ .mutate = .{ .work = .{ .claim = inbound_claim }, .payload = null } }, 256)).operation.?.claim;
+    const inbound_page = try queueCall(&catalog, &access, &queue_cache, &clock, .{ .page = .{ .cursor = .{ .receipt = inbound_receipt, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } }, 256);
+    defer inbound_page.deinit(t.allocator);
+    try t.expect(inbound_page.page.rows[0].execution == null);
+    const execution: p.Transaction.Execution = .{ .realm = scope.realm, .pid = 19, .principal = 1, .generation = 4, .code = 2, .workload = @splat(0xab), .input = inbound_claim };
+    _ = try catalog.beginTransaction(.{ .key = guarded_key, .fingerprint = @splat(74), .operation = begin_op, .namespace = 1, .mode = .serializable, .deadline = null, .execution = execution, .selection = .{ .explicit_objects = &.{ .{ .object = stream_target.interpretation.object, .kind = .stream, .partition = 0 }, .{ .object = queue_target.interpretation.object, .kind = .queue, .partition = 0 } } }, .limits = c.DirectTransaction.default_limits, .budget = template.binding.budget }, Native.policy(&access));
+    _ = try catalog.acquireTransaction(guarded_key, Native.policy(&access));
+    const guarded_s_op: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 9822 };
+    const guarded_s_bytes = try s.LogBatch.encode(stream_schema, guarded_s_op, .stream, &.{.{ .cells = &cells }}, &buf);
+    const staged_gs = try catalog.stageTransactionLog(guarded_key, (try catalog.inspectTransaction(guarded_key, Native.policy(&access))).revision, 1, .{ .append = .{ .target = stream_target, .operation = guarded_s_op, .kind = .stream, .producer = null, .rows = 1, .payload = s.LogBatch.content(guarded_s_bytes) } }, guarded_s_bytes, Native.policy(&access));
+    _ = try catalog.executeTransactionLog(guarded_key, staged_gs, Native.policy(&access));
+    const guarded_q_op: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 9823 };
+    const guarded_q_bytes = try s.LogBatch.encode(log_schema, guarded_q_op, .queue, &.{.{ .cells = &cells }}, &buf);
+    const staged_gq = try catalog.stageTransactionLog(guarded_key, (try catalog.inspectTransaction(guarded_key, Native.policy(&access))).revision, 2, .{ .append = .{ .target = queue_target, .operation = guarded_q_op, .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(guarded_q_bytes) } }, guarded_q_bytes, Native.policy(&access));
+    _ = try catalog.executeTransactionLog(guarded_key, staged_gq, Native.policy(&access));
+    const staged_ack = try catalog.stageTransactionLog(guarded_key, (try catalog.inspectTransaction(guarded_key, Native.policy(&access))).revision, 3, .{ .queue_ack = .{ .operation = .{ .scope = scope, .principal = 1, .operation = 9825 }, .lease = inbound_page.page.rows[0].lease.original, .action = .ack } }, null, Native.policy(&access));
+    _ = try catalog.executeTransactionLog(guarded_key, staged_ack, Native.policy(&access));
+    try t.expectEqual(.committed, (try catalog.settleTransaction(guarded_key, .{ .scope = scope, .principal = 1, .operation = 9824 }, .commit, 16, Native.policy(&access))).observation.decided.outcome);
+
+    const expected_origin: p.Transaction.Origin = .{ .realm = scope.realm, .pid = 19, .principal = 1, .generation = 4, .code = 2, .workload = @splat(0xab), .transaction = begin_op };
+    const q_claim = (try queueCall(&catalog, &access, &queue_cache, &clock, .{ .mutate = .{ .work = .{ .claim = .{ .target = queue_target, .operation = .{ .scope = scope, .principal = 1, .operation = 9830 }, .maximum = 4, .lease_ms = 100, .predicate = null } }, .payload = null } }, 256)).operation.?.claim;
+    const q_page = try queueCall(&catalog, &access, &queue_cache, &clock, .{ .page = .{ .cursor = .{ .receipt = q_claim, .next = 0 }, .limits = .{ .rows = 4, .encoded_bytes = 8192 } } }, 256);
+    defer q_page.deinit(t.allocator);
+    try t.expectEqual(@as(usize, 2), q_page.page.rows.len);
+    try t.expect(q_page.page.rows[0].execution == null);
+    try t.expectEqualDeep(@as(?p.Transaction.Origin, expected_origin), q_page.page.rows[1].execution);
+
+    const s_read = (try streamCall(&catalog, &access, &stream_cache, .{ .mutate = .{ .work = .{ .consume = .{ .target = stream_target, .operation = .{ .scope = scope, .principal = 1, .operation = 9831 }, .group = null, .from = 0, .until = null, .timestamp = null } }, .payload = null } }, 256)).operation.?.consume;
+    const s_cursor = (try streamCall(&catalog, &access, &stream_cache, .{ .cursor = .{ .target = stream_target, .read = s_read.handle() } }, 256)).cursor;
+    const s_page = try streamCall(&catalog, &access, &stream_cache, .{ .page = .{ .cursor = s_cursor, .limits = .{ .rows = 4, .encoded_bytes = 8192 } } }, 256);
+    defer s_page.deinit(t.allocator);
+    try t.expectEqual(@as(usize, 2), s_page.page.rows.len);
+    try t.expect(s_page.page.rows[0].execution == null);
+    try t.expectEqualDeep(@as(?p.Transaction.Origin, expected_origin), s_page.page.rows[1].execution);
+}
+
 test "transaction server selection freezes authorized catalog and preserves original token" {
     var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
     defer wal.deinit();

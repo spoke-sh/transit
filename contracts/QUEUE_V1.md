@@ -54,7 +54,9 @@ false empty result. ACK, NACK, renewal and bounded expiry also publish complete
 successor roots with current authorization and conservative deadline checks,
 while incrementally maintaining resident `DeadlineCache`, `QueueVisibilityCache`
 and `QueueAffinity` prefixes.
-Bounded original-claim reads return owned payload rows and separately observed
+Bounded original-claim reads return owned payload rows, mandatory nullable
+`execution` provenance (`Transaction.Origin` from the batch's `LOGEVID1`
+evidence, omitting private inbound claim predicates) and separately observed
 lease status. The catalog adapter `DirectQueue.apply` binds those
 operations to current native Queue grants and the shared operation namespace.
 Claim receipt inspection and payload pages require read and acquire privileges;

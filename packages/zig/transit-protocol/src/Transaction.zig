@@ -134,6 +134,33 @@ pub const Execution = struct {
     }
 };
 
+/// Authority-fenced execution provenance recorded on transactional log batches.
+/// Omits private inbound claim predicates while preserving PID/generation/code.
+pub const Origin = struct {
+    realm: u64,
+    pid: u64,
+    principal: u64,
+    generation: u64,
+    code: u32,
+    workload: ?[32]u8,
+    transaction: d.Operation,
+
+    pub fn validate(self: Origin) !void {
+        try (Execution{
+            .realm = self.realm,
+            .pid = self.pid,
+            .principal = self.principal,
+            .generation = self.generation,
+            .code = self.code,
+            .workload = self.workload,
+            .input = null,
+        }).validate();
+        try self.transaction.validate();
+        if (self.realm != self.transaction.scope.realm or self.principal != self.transaction.principal)
+            return error.TransactionIdentityConflict;
+    }
+};
+
 pub const Begin = struct {
     definition: p.Growth.Definition,
     identity: Identity,
@@ -156,6 +183,22 @@ pub const Begin = struct {
         if (self.execution) |execution| try execution.requireIdentity(self.identity);
         if (self.catalog.next_lsn == 0 or self.objects.count > self.limits.participants)
             return error.InvalidTransactionBegin;
+    }
+
+    pub fn origin(self: Begin) !?Origin {
+        try self.validate();
+        const execution = self.execution orelse return null;
+        const result: Origin = .{
+            .realm = execution.realm,
+            .pid = execution.pid,
+            .principal = execution.principal,
+            .generation = execution.generation,
+            .code = execution.code,
+            .workload = execution.workload,
+            .transaction = self.identity.begin,
+        };
+        try result.validate();
+        return result;
     }
 
     pub fn requireSame(self: Begin, other: Begin) !void {
