@@ -31401,15 +31401,15 @@
         "ApplicationHostUnavailable": 1,
         "DuplicateProgramField": 1,
         "DuplicateProgramResource": 1,
-        "DuplicateProgramVariable": 1,
-        "InvalidColumnName": 1,
+        "DuplicateProgramVariable": 2,
+        "InvalidColumnName": 2,
         "InvalidProgramNode": 1,
         "ProgramArgumentMismatch": 9,
         "ProgramNullabilityMismatch": 1,
         "ProgramResourceKindMismatch": 2,
         "ProgramTooComplex": 2,
         "ProgramTooDeep": 1,
-        "ProgramTypeMismatch": 18,
+        "ProgramTypeMismatch": 20,
         "ProtectedProgramValue": 4,
         "UnknownProgramField": 2,
         "UnknownProgramResource": 1,
@@ -31453,7 +31453,9 @@
       "error_sets": {},
       "error_returns": {
         "Requirements.requireAvailable()": "<inferred>",
+        "analysisAllocation()": "<inferred>",
         "bind()": "<inferred>",
+        "bindForAnalysis()": "<inferred>",
         "block()": "anyerror",
         "call()": "<inferred>",
         "cloneFields()": "<inferred>",
@@ -31470,7 +31472,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 144,
+        "try": 155,
         "catch": 0
       },
       "imports": [
