@@ -88,7 +88,7 @@ pub fn withSnapshots(engine: anytype, signed: g.SignedQuery, hooks: anytype) any
         const pid: ?u64 = switch (query.kind) {
             .process => |id| id,
             .inspection => |value| value.pid,
-            inline .association, .associations, .effects, .read_versions => |value| value.pid,
+            inline .association, .associations, .effects, .effect_admission, .read_versions => |value| value.pid,
             .read_version => |value| value.pid,
             .version_entries => |value| value.id.pid,
             .view => |id| try viewPid(engine, id),
@@ -475,6 +475,11 @@ fn authorizedSelected(comptime kind: std.meta.Tag(@FieldType(g.Query, "kind")), 
             };
             if (batch.next) |cursor| result.next = std.mem.readInt(u64, cursor.data[1..9], .big);
             break :blk .{ .outputs = result };
+        },
+        .effect_admission => blk: {
+            const q = query.kind.effect_admission;
+            try scope(principal, q.pid);
+            break :blk .{ .effect_admission = try engine.effectAdmission(q.pid, q.key) };
         },
         .effects => blk: {
             const q = query.kind.effects;

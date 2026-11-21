@@ -267,3 +267,15 @@ The [proof ledger](../docs/history/qualification/README.md) records HTTP disk re
 corpus for binary and directional records. This contract alone is not evidence
 of network isolation, complete HTTP/gRPC capture,
 SDK compatibility or remote exactly-once execution.
+
+## Transactional admission foundation
+
+The installed [committed Queue effect admission](TRANSIT_V1.md#committed-queue-effect-admission)
+operation is the native authority foundation for the internal transactional
+Exchange migration. Its effect ID comes from the permanent committed-row mapping,
+not a native intent entry's revision. Its binding digest covers the complete
+encoded Queue row and authenticated transaction provenance. It does not yet
+replace this contract's Publication-backed capture layout, finite HTTP/RPC
+workers, caller holds or native-turn `commitIntent` API. Those existing consumers
+continue to use the same-turn contract above until their capture and completion
+owners migrate together. Admission alone does not qualify connector migration.
