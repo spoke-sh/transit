@@ -10,6 +10,15 @@ The frontend has no Arrow, query scan, storage, filesystem, service or network
 dependency. Callers supply bytes, schemas, allocators and explicit bounds. Parsing
 or binding establishes neither runtime authorization nor successful execution.
 
+`ApplicationProgram.Types.bindForAnalysis` accepts at most 64 immutable public
+scalar parameters for offline specialization checks. They do not add Queue
+fields or resource dependencies; ordinary record, expression and resource limits
+still apply. Parameters cannot shadow the input alias or Queue columns, carry
+protected values, or introduce record fields. Failure handlers retain these
+constants but cannot read body locals. The returned binding owns its parameter
+descriptors. Native installation uses `bind`, which rejects unresolved names;
+the analysis API does not supply runtime values or executable parameter syntax.
+
 Fuze reexports these public types to keep one module identity for existing
 consumers. Its `ApplicationProgram` facade adds expression/cursor execution;
 `LogicalQuery` adds the pull executor. Those runtime composition helpers and
