@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "definition": "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5",
+  "definition": "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff",
   "minimum_stack_bytes": 8388608,
   "limits": {
     "handler_action_bytes": 262144,
@@ -2910,7 +2910,7 @@
         "T17": {
           "type": "string",
           "enum": [
-            "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+            "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
           ]
         },
         "T18": {
@@ -5946,7 +5946,7 @@
         "T78": {
           "type": "string",
           "enum": [
-            "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+            "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
           ]
         },
         "T79": {
@@ -8032,7 +8032,7 @@
         "T159": {
           "type": "string",
           "enum": [
-            "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+            "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
           ]
         },
         "T160": {
@@ -9364,7 +9364,7 @@
         "T205": {
           "type": "string",
           "enum": [
-            "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+            "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
           ]
         },
         "T206": {
@@ -15471,7 +15471,7 @@
         "T416": {
           "type": "string",
           "enum": [
-            "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+            "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
           ]
         },
         "T417": {
@@ -24441,7 +24441,7 @@
         "T5": {
           "type": "string",
           "enum": [
-            "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+            "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
           ]
         },
         "T6": {
@@ -30483,7 +30483,7 @@
         "T7": {
           "type": "string",
           "enum": [
-            "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+            "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
           ]
         },
         "T8": {
@@ -35209,7 +35209,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+            "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
           ]
         },
         "profile": {
@@ -35492,7 +35492,7 @@
       ],
       "x-transit-defaults": {
         "version": 1,
-        "definition": "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5",
+        "definition": "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff",
         "profile": "native_v1",
         "gated_dispatch": true,
         "retained_confirmation": true,
@@ -36190,7 +36190,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+                        "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
                       ]
                     },
                     "code": {
@@ -37024,7 +37024,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+                        "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
                       ]
                     },
                     "code": {
@@ -38038,7 +38038,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+                        "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
                       ]
                     },
                     "code": {
@@ -39546,7 +39546,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+                        "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
                       ]
                     },
                     "code": {
@@ -40380,7 +40380,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+                        "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
                       ]
                     },
                     "code": {
@@ -41394,7 +41394,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+                        "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
                       ]
                     },
                     "code": {
@@ -47928,7 +47928,7 @@
         "T56": {
           "type": "string",
           "enum": [
-            "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+            "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
           ]
         },
         "T57": {
@@ -51204,7 +51204,7 @@
         "T58": {
           "type": "string",
           "enum": [
-            "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+            "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
           ]
         },
         "T59": {
@@ -54329,7 +54329,7 @@
                 "definition": {
                   "type": "string",
                   "enum": [
-                    "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+                    "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
                   ]
                 },
                 "catalogs": {
@@ -55048,7 +55048,7 @@
         "T11": {
           "type": "string",
           "enum": [
-            "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+            "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
           ]
         },
         "T12": {
@@ -55355,7 +55355,7 @@
         "T27": {
           "type": "string",
           "enum": [
-            "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+            "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
           ]
         },
         "T28": {
@@ -58438,7 +58438,7 @@
             "consistency"
           ],
           "x-transit-defaults": {
-            "definition": "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5",
+            "definition": "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff",
             "sources": 2,
             "active_queries": 1,
             "page_rows": 1,
@@ -58451,7 +58451,7 @@
         "T3": {
           "type": "string",
           "enum": [
-            "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+            "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
           ]
         },
         "T4": {
@@ -58518,7 +58518,7 @@
             "executed"
           ],
           "x-transit-defaults": {
-            "definition": "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5",
+            "definition": "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff",
             "executed": false
           }
         },
@@ -58602,7 +58602,7 @@
         "T13": {
           "type": "string",
           "enum": [
-            "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+            "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
           ]
         },
         "T14": {
@@ -66595,7 +66595,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+            "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
           ]
         },
         "connection": {
@@ -67049,7 +67049,7 @@
         "T6": {
           "type": "string",
           "enum": [
-            "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+            "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
           ]
         },
         "T7": {
@@ -73156,7 +73156,7 @@
         "T217": {
           "type": "string",
           "enum": [
-            "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+            "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
           ]
         },
         "T218": {
@@ -76533,7 +76533,7 @@
           ],
           "x-transit-defaults": {
             "version": 1,
-            "definition": "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5",
+            "definition": "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff",
             "max_columns": 128,
             "max_rows": 1024,
             "max_sql_bytes": 1048576,
@@ -76553,7 +76553,7 @@
         "T4": {
           "type": "string",
           "enum": [
-            "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+            "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
           ]
         },
         "T5": {
@@ -78575,7 +78575,7 @@
                 "definition": {
                   "type": "string",
                   "enum": [
-                    "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+                    "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
                   ]
                 },
                 "realm": {
@@ -80652,7 +80652,7 @@
                                                     "definition": {
                                                       "type": "string",
                                                       "enum": [
-                                                        "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+                                                        "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
                                                       ]
                                                     },
                                                     "realm": {
@@ -81376,6 +81376,460 @@
                       "type": "object",
                       "additionalProperties": false,
                       "required": [
+                        "admit_effect"
+                      ],
+                      "properties": {
+                        "admit_effect": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "x-transit-field-order": [
+                            "pid",
+                            "generation",
+                            "source"
+                          ],
+                          "properties": {
+                            "pid": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            "generation": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            "source": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "x-transit-field-order": [
+                                "record",
+                                "offset",
+                                "execution",
+                                "row_sha256"
+                              ],
+                              "properties": {
+                                "record": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "x-transit-field-order": [
+                                    "target",
+                                    "operation",
+                                    "ordinal"
+                                  ],
+                                  "properties": {
+                                    "target": {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "x-transit-field-order": [
+                                        "definition",
+                                        "interpretation",
+                                        "partition"
+                                      ],
+                                      "properties": {
+                                        "definition": {
+                                          "type": "string",
+                                          "enum": [
+                                            "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
+                                          ]
+                                        },
+                                        "interpretation": {
+                                          "type": "object",
+                                          "additionalProperties": false,
+                                          "x-transit-field-order": [
+                                            "object",
+                                            "revision",
+                                            "digest"
+                                          ],
+                                          "properties": {
+                                            "object": {
+                                              "type": "object",
+                                              "additionalProperties": false,
+                                              "x-transit-field-order": [
+                                                "scope",
+                                                "branch",
+                                                "object"
+                                              ],
+                                              "properties": {
+                                                "scope": {
+                                                  "type": "object",
+                                                  "additionalProperties": false,
+                                                  "x-transit-field-order": [
+                                                    "realm",
+                                                    "resource",
+                                                    "catalog"
+                                                  ],
+                                                  "properties": {
+                                                    "realm": {
+                                                      "type": "integer",
+                                                      "minimum": 0,
+                                                      "maximum": 18446744073709551615,
+                                                      "x-transit-bits": 64,
+                                                      "x-transit-signed": false
+                                                    },
+                                                    "resource": {
+                                                      "type": "integer",
+                                                      "minimum": 0,
+                                                      "maximum": 18446744073709551615,
+                                                      "x-transit-bits": 64,
+                                                      "x-transit-signed": false
+                                                    },
+                                                    "catalog": {
+                                                      "type": "integer",
+                                                      "minimum": 0,
+                                                      "maximum": 18446744073709551615,
+                                                      "x-transit-bits": 64,
+                                                      "x-transit-signed": false
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "realm",
+                                                    "resource",
+                                                    "catalog"
+                                                  ],
+                                                  "x-transit-defaults": {}
+                                                },
+                                                "branch": {
+                                                  "type": "integer",
+                                                  "minimum": 0,
+                                                  "maximum": 18446744073709551615,
+                                                  "x-transit-bits": 64,
+                                                  "x-transit-signed": false
+                                                },
+                                                "object": {
+                                                  "type": "integer",
+                                                  "minimum": 0,
+                                                  "maximum": 18446744073709551615,
+                                                  "x-transit-bits": 64,
+                                                  "x-transit-signed": false
+                                                }
+                                              },
+                                              "required": [
+                                                "scope",
+                                                "branch",
+                                                "object"
+                                              ],
+                                              "x-transit-defaults": {}
+                                            },
+                                            "revision": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 18446744073709551615,
+                                              "x-transit-bits": 64,
+                                              "x-transit-signed": false
+                                            },
+                                            "digest": {
+                                              "type": "array",
+                                              "minItems": 32,
+                                              "maxItems": 32,
+                                              "items": {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 255,
+                                                "x-transit-bits": 8,
+                                                "x-transit-signed": false
+                                              }
+                                            }
+                                          },
+                                          "required": [
+                                            "object",
+                                            "revision",
+                                            "digest"
+                                          ],
+                                          "x-transit-defaults": {}
+                                        },
+                                        "partition": {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 4294967295,
+                                          "x-transit-bits": 32,
+                                          "x-transit-signed": false
+                                        }
+                                      },
+                                      "required": [
+                                        "definition",
+                                        "interpretation",
+                                        "partition"
+                                      ],
+                                      "x-transit-defaults": {}
+                                    },
+                                    "operation": {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "x-transit-field-order": [
+                                        "scope",
+                                        "principal",
+                                        "operation"
+                                      ],
+                                      "properties": {
+                                        "scope": {
+                                          "type": "object",
+                                          "additionalProperties": false,
+                                          "x-transit-field-order": [
+                                            "realm",
+                                            "resource",
+                                            "catalog"
+                                          ],
+                                          "properties": {
+                                            "realm": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 18446744073709551615,
+                                              "x-transit-bits": 64,
+                                              "x-transit-signed": false
+                                            },
+                                            "resource": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 18446744073709551615,
+                                              "x-transit-bits": 64,
+                                              "x-transit-signed": false
+                                            },
+                                            "catalog": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 18446744073709551615,
+                                              "x-transit-bits": 64,
+                                              "x-transit-signed": false
+                                            }
+                                          },
+                                          "required": [
+                                            "realm",
+                                            "resource",
+                                            "catalog"
+                                          ],
+                                          "x-transit-defaults": {}
+                                        },
+                                        "principal": {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 18446744073709551615,
+                                          "x-transit-bits": 64,
+                                          "x-transit-signed": false
+                                        },
+                                        "operation": {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 18446744073709551615,
+                                          "x-transit-bits": 64,
+                                          "x-transit-signed": false
+                                        }
+                                      },
+                                      "required": [
+                                        "scope",
+                                        "principal",
+                                        "operation"
+                                      ],
+                                      "x-transit-defaults": {}
+                                    },
+                                    "ordinal": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 4294967295,
+                                      "x-transit-bits": 32,
+                                      "x-transit-signed": false
+                                    }
+                                  },
+                                  "required": [
+                                    "target",
+                                    "operation",
+                                    "ordinal"
+                                  ],
+                                  "x-transit-defaults": {}
+                                },
+                                "offset": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 18446744073709551615,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "execution": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "x-transit-field-order": [
+                                    "realm",
+                                    "pid",
+                                    "principal",
+                                    "generation",
+                                    "code",
+                                    "workload",
+                                    "transaction"
+                                  ],
+                                  "properties": {
+                                    "realm": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 18446744073709551615,
+                                      "x-transit-bits": 64,
+                                      "x-transit-signed": false
+                                    },
+                                    "pid": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 18446744073709551615,
+                                      "x-transit-bits": 64,
+                                      "x-transit-signed": false
+                                    },
+                                    "principal": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 18446744073709551615,
+                                      "x-transit-bits": 64,
+                                      "x-transit-signed": false
+                                    },
+                                    "generation": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 18446744073709551615,
+                                      "x-transit-bits": 64,
+                                      "x-transit-signed": false
+                                    },
+                                    "code": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 4294967295,
+                                      "x-transit-bits": 32,
+                                      "x-transit-signed": false
+                                    },
+                                    "workload": {
+                                      "anyOf": [
+                                        {
+                                          "type": "array",
+                                          "minItems": 32,
+                                          "maxItems": 32,
+                                          "items": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 255,
+                                            "x-transit-bits": 8,
+                                            "x-transit-signed": false
+                                          }
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "transaction": {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "x-transit-field-order": [
+                                        "scope",
+                                        "principal",
+                                        "operation"
+                                      ],
+                                      "properties": {
+                                        "scope": {
+                                          "type": "object",
+                                          "additionalProperties": false,
+                                          "x-transit-field-order": [
+                                            "realm",
+                                            "resource",
+                                            "catalog"
+                                          ],
+                                          "properties": {
+                                            "realm": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 18446744073709551615,
+                                              "x-transit-bits": 64,
+                                              "x-transit-signed": false
+                                            },
+                                            "resource": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 18446744073709551615,
+                                              "x-transit-bits": 64,
+                                              "x-transit-signed": false
+                                            },
+                                            "catalog": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 18446744073709551615,
+                                              "x-transit-bits": 64,
+                                              "x-transit-signed": false
+                                            }
+                                          },
+                                          "required": [
+                                            "realm",
+                                            "resource",
+                                            "catalog"
+                                          ],
+                                          "x-transit-defaults": {}
+                                        },
+                                        "principal": {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 18446744073709551615,
+                                          "x-transit-bits": 64,
+                                          "x-transit-signed": false
+                                        },
+                                        "operation": {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 18446744073709551615,
+                                          "x-transit-bits": 64,
+                                          "x-transit-signed": false
+                                        }
+                                      },
+                                      "required": [
+                                        "scope",
+                                        "principal",
+                                        "operation"
+                                      ],
+                                      "x-transit-defaults": {}
+                                    }
+                                  },
+                                  "required": [
+                                    "realm",
+                                    "pid",
+                                    "principal",
+                                    "generation",
+                                    "code",
+                                    "workload",
+                                    "transaction"
+                                  ],
+                                  "x-transit-defaults": {}
+                                },
+                                "row_sha256": {
+                                  "type": "array",
+                                  "minItems": 32,
+                                  "maxItems": 32,
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 255,
+                                    "x-transit-bits": 8,
+                                    "x-transit-signed": false
+                                  }
+                                }
+                              },
+                              "required": [
+                                "record",
+                                "offset",
+                                "execution",
+                                "row_sha256"
+                              ],
+                              "x-transit-defaults": {}
+                            }
+                          },
+                          "required": [
+                            "pid",
+                            "generation",
+                            "source"
+                          ],
+                          "x-transit-defaults": {}
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
                         "dispatch"
                       ],
                       "properties": {
@@ -81986,7 +82440,7 @@
                                                         "definition": {
                                                           "type": "string",
                                                           "enum": [
-                                                            "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+                                                            "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
                                                           ]
                                                         },
                                                         "realm": {
@@ -87278,7 +87732,7 @@
         "T206": {
           "type": "string",
           "enum": [
-            "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+            "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
           ]
         },
         "T207": {
@@ -90139,7 +90593,7 @@
         "T324": {
           "type": "string",
           "enum": [
-            "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+            "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
           ]
         },
         "T325": {

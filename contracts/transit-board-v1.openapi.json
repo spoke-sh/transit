@@ -4083,6 +4083,7 @@
                             "expire_resource",
                             "reclaim_resource",
                             "deliver",
+                            "admit_effect",
                             "dispatch",
                             "observe",
                             "close_effect",
@@ -4422,6 +4423,7 @@
                       "type": "object",
                       "additionalProperties": false,
                       "x-transit-field-order": [
+                        "source",
                         "id",
                         "pid",
                         "payload",
@@ -4438,6 +4440,52 @@
                         "observations"
                       ],
                       "properties": {
+                        "source": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "x-transit-field-order": [
+                                "key",
+                                "digest"
+                              ],
+                              "properties": {
+                                "key": {
+                                  "type": "array",
+                                  "minItems": 32,
+                                  "maxItems": 32,
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 255,
+                                    "x-transit-bits": 8,
+                                    "x-transit-signed": false
+                                  }
+                                },
+                                "digest": {
+                                  "type": "array",
+                                  "minItems": 32,
+                                  "maxItems": 32,
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 255,
+                                    "x-transit-bits": 8,
+                                    "x-transit-signed": false
+                                  }
+                                }
+                              },
+                              "required": [
+                                "key",
+                                "digest"
+                              ],
+                              "x-transit-defaults": {}
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "id": {
                           "type": "integer",
                           "minimum": 0,
@@ -4670,6 +4718,7 @@
                         }
                       },
                       "required": [
+                        "source",
                         "id",
                         "pid",
                         "payload",
@@ -4686,6 +4735,7 @@
                         "observations"
                       ],
                       "x-transit-defaults": {
+                        "source": null,
                         "phase": "pending",
                         "attempt": null,
                         "executor": null,
@@ -5100,7 +5150,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+                        "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
                       ]
                     },
                     "code": {
@@ -7181,7 +7231,7 @@
                   "definition": {
                     "type": "string",
                     "enum": [
-                      "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+                      "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
                     ]
                   },
                   "code": {
@@ -16229,7 +16279,7 @@
           "T61": {
             "type": "string",
             "enum": [
-              "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+              "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
             ]
           },
           "T62": {
@@ -21585,7 +21635,7 @@
           "T5": {
             "type": "string",
             "enum": [
-              "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+              "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
             ]
           },
           "T6": {
@@ -21985,7 +22035,7 @@
           "T25": {
             "type": "string",
             "enum": [
-              "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+              "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
             ]
           },
           "T26": {
@@ -22401,7 +22451,7 @@
               "consistency"
             ],
             "x-transit-defaults": {
-              "definition": "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5",
+              "definition": "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff",
               "sources": 2,
               "active_queries": 1,
               "page_rows": 1,
@@ -22414,7 +22464,7 @@
           "T3": {
             "type": "string",
             "enum": [
-              "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+              "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
             ]
           },
           "T4": {
@@ -22895,7 +22945,7 @@
               "executed"
             ],
             "x-transit-defaults": {
-              "definition": "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5",
+              "definition": "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff",
               "executed": false
             }
           },
@@ -22971,7 +23021,7 @@
           "T29": {
             "type": "string",
             "enum": [
-              "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+              "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
             ]
           },
           "T30": {
@@ -26066,7 +26116,7 @@
           "T1": {
             "type": "string",
             "enum": [
-              "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+              "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
             ]
           },
           "T2": {
@@ -27408,7 +27458,7 @@
             ],
             "x-transit-defaults": {
               "version": 1,
-              "definition": "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5",
+              "definition": "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff",
               "max_columns": 128,
               "max_rows": 1024,
               "max_sql_bytes": 1048576,
@@ -27428,7 +27478,7 @@
           "T4": {
             "type": "string",
             "enum": [
-              "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+              "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
             ]
           },
           "T5": {
@@ -31815,7 +31865,7 @@
           "T159": {
             "type": "string",
             "enum": [
-              "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+              "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
             ]
           },
           "T160": {
@@ -33172,7 +33222,7 @@
           "T216": {
             "type": "string",
             "enum": [
-              "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+              "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
             ]
           },
           "T217": {
@@ -34525,7 +34575,7 @@
           "T1": {
             "type": "string",
             "enum": [
-              "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+              "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
             ]
           },
           "T2": {
@@ -34691,7 +34741,7 @@
           "T1": {
             "type": "string",
             "enum": [
-              "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+              "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
             ]
           },
           "T2": {
@@ -35232,7 +35282,7 @@
           "T1": {
             "type": "string",
             "enum": [
-              "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+              "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
             ]
           },
           "T2": {
@@ -35456,7 +35506,7 @@
               "lifetime_ms"
             ],
             "x-transit-defaults": {
-              "definition": "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5",
+              "definition": "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff",
               "readers": 4,
               "window_rows": 100,
               "window_bytes": 2097152,
@@ -35466,7 +35516,7 @@
           "T2": {
             "type": "string",
             "enum": [
-              "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+              "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
             ]
           },
           "T3": {
@@ -35585,7 +35635,7 @@
               "stopped"
             ],
             "x-transit-defaults": {
-              "definition": "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+              "definition": "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
             }
           },
           "T10": {
@@ -37330,7 +37380,7 @@
           "T1": {
             "type": "string",
             "enum": [
-              "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+              "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
             ]
           },
           "T2": {
@@ -37711,7 +37761,7 @@
               "namespace"
             ],
             "x-transit-defaults": {
-              "definition": "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5",
+              "definition": "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff",
               "cells": 4,
               "rows": 10000,
               "value_bytes": 16777216,
@@ -37723,7 +37773,7 @@
           "T2": {
             "type": "string",
             "enum": [
-              "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+              "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
             ]
           },
           "T3": {
@@ -38108,7 +38158,7 @@
               "stopped"
             ],
             "x-transit-defaults": {
-              "definition": "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+              "definition": "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
             }
           },
           "T23": {
@@ -39839,7 +39889,7 @@
           "definition": {
             "type": "string",
             "enum": [
-              "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5"
+              "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
             ]
           },
           "profile": {
@@ -39904,7 +39954,7 @@
           "features"
         ],
         "x-transit-defaults": {
-          "definition": "7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5",
+          "definition": "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff",
           "profile": "native_v1"
         }
       },

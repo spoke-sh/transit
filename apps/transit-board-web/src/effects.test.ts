@@ -56,6 +56,7 @@ function page() {
     id: 3,
     pid: 1,
     payload: "",
+    source: null,
     phase: "closed_unknown",
     attempt: 5,
     executor: 2,
