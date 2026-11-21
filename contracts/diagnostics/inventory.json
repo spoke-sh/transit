@@ -31131,27 +31131,34 @@
     },
     "packages/zig/transit-sql-frontend/src/ApplicationPredicate.zig": {
       "errors": {
+        "CellTooLarge": 1,
         "InvalidQueuePredicate": 6,
-        "PredicateTooLarge": 1,
-        "ProgramTooDeep": 1,
-        "ProgramTypeMismatch": 5,
+        "PredicateTooLarge": 2,
+        "ProgramTooComplex": 1,
+        "ProgramTooDeep": 2,
+        "ProgramTypeMismatch": 8,
         "SourceChanged": 1,
-        "UnknownColumn": 2
+        "UnknownColumn": 2,
+        "UnsupportedComparison": 2
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "Analysis.add()": "<inferred>",
+        "Analysis.check()": "anyerror",
+        "Analysis.parameter()": "<inferred>",
         "column()": "<inferred>",
         "compile()": "<inferred>",
         "emit()": "<inferred>",
         "integer()": "<inferred>",
         "literal()": "<inferred>",
         "lower()": "anyerror",
-        "validate()": "<inferred>"
+        "validate()": "<inferred>",
+        "validateForAnalysis()": "<inferred>"
       },
-      "open_error_set_uses": 1,
+      "open_error_set_uses": 2,
       "propagation": {
-        "try": 28,
+        "try": 43,
         "catch": 0
       },
       "imports": [

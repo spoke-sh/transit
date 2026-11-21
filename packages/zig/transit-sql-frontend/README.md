@@ -18,6 +18,12 @@ protected values, or introduce record fields. Failure handlers retain these
 constants but cannot read body locals. The returned binding owns its parameter
 descriptors. Native installation uses `bind`, which rejects unresolved names;
 the analysis API does not supply runtime values or executable parameter syntax.
+After successful binding, `ApplicationProgram.Predicate.validateForAnalysis`
+checks Queue filters with the same scalar parameters. Boolean parameter leaves,
+logical operators and parameter/literal atoms use the existing native profile
+and 64-instruction budget without adding fields or inventing sample values.
+Concrete atoms retain native collation checks. Selected programs must still pass
+ordinary predicate validation and compilation after replacing parameters.
 
 Fuze reexports these public types to keep one module identity for existing
 consumers. Its `ApplicationProgram` facade adds expression/cursor execution;

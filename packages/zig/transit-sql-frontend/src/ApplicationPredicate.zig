@@ -115,6 +115,102 @@ pub fn validate(program: a.Program, schema: f.TableSchema.Schema) !void {
     const layout = try f.WorkloadProjection.schemaLayout(schema, fields[0..schema.columns.len], .claim);
     try (Program{ .instructions = builder.instructions[0..builder.count] }).validateCollations(layout.typeOf(), layout.collations);
 }
+/// Validate an offline specialization without inventing Queue columns or scalar
+/// values. Call Types.bindForAnalysis first: it owns parameter scope/type checks.
+/// Concrete atoms use the native validator; symbolic atoms retain its scalar
+/// and literal restrictions and consume the same bounded instruction budget.
+/// This produces no predicate bytes. Selected programs still use validate/compile.
+pub fn validateForAnalysis(program: a.Program, schema: f.TableSchema.Schema, parameters: []const a.Types.Field) !void {
+    if (parameters.len == 0) return validate(program, schema);
+    try a.Codec.validate(program);
+    try schema.validate();
+    if (parameters.len > a.max_arguments) return error.ProgramTooComplex;
+    var analysis: Analysis = .{ .program = program, .schema = schema, .parameters = parameters };
+    if (program.predicate) |predicate| try analysis.check(predicate, 0);
+}
+const Analysis = struct {
+    program: a.Program,
+    schema: f.TableSchema.Schema,
+    parameters: []const a.Types.Field,
+    count: usize = 0,
+
+    fn parameter(self: Analysis, expression: *const a.Expression) !?f.Types.Type {
+        if (expression.value != .name) return null;
+        for (self.parameters) |entry| if (std.mem.eql(u8, entry.name, expression.value.name)) {
+            if (entry.value.protected or entry.value.fields.len != 0) return error.ProgramTypeMismatch;
+            return switch (entry.value.kind) {
+                .boolean => .boolean,
+                .integer => .int64,
+                .text => .utf8,
+                .binary => .binary,
+                .uuid => .uuid,
+                .timestamp => .{ .timestamp = .utc },
+                .duration => .interval,
+                .json => .json,
+                else => error.ProgramTypeMismatch,
+            };
+        };
+        return null;
+    }
+    fn add(self: *Analysis, count: usize) !void {
+        if (count > Program.max_instructions - self.count) return error.PredicateTooLarge;
+        self.count += count;
+    }
+    fn check(self: *Analysis, expression: *const a.Expression, depth: usize) anyerror!void {
+        if (depth > a.max_depth) return error.ProgramTooDeep;
+        switch (expression.value) {
+            .name => if (try self.parameter(expression)) |type_| {
+                if (type_ != .boolean) return error.ProgramTypeMismatch;
+                return self.add(1);
+            },
+            .unary => |value| switch (value.operator) {
+                .not_ => {
+                    try self.check(value.operand, depth + 1);
+                    return self.add(1);
+                },
+                .is_null, .is_not_null => if (try self.parameter(value.operand) != null)
+                    return self.add(if (value.operator == .is_null) 1 else 2),
+                else => {},
+            },
+            .binary => |value| {
+                if (value.operator == .and_ or value.operator == .or_) {
+                    try self.check(value.left, depth + 1);
+                    try self.check(value.right, depth + 1);
+                    return self.add(1);
+                }
+                switch (value.operator) {
+                    .equal, .not_equal, .less, .less_equal, .greater, .greater_equal => {
+                        const reversed = value.left.value != .name and value.left.value != .field;
+                        if (try self.parameter(if (reversed) value.right else value.left)) |type_| {
+                            const constant = try literal(if (reversed) value.left else value.right, type_);
+                            if (constant) |atom| {
+                                try f.Types.Semantics.validate(atom, type_);
+                                if (atom == .bytes and atom.bytes.len > f.Types.Query.max_cell_bytes) return error.CellTooLarge;
+                                if (type_ == .interval) return error.UnsupportedComparison;
+                            } else switch (type_) {
+                                .interval, .json => return error.UnsupportedComparison,
+                                else => {},
+                            }
+                            return self.add(1);
+                        }
+                    },
+                    else => {},
+                }
+            },
+            else => {},
+        }
+        // Validate the original concrete atom, including native collation and
+        // operand restrictions. No parameter is substituted with a sample value.
+        var builder: Self = .{ .schema = self.schema, .alias = self.program.input };
+        try builder.lower(expression, depth);
+        var fields: [f.TableSchema.max_columns]f.WorkloadProjection.Field = undefined;
+        for (self.schema.columns, fields[0..self.schema.columns.len]) |field, *slot| slot.* = .{ .column = field.id };
+        const layout = try f.WorkloadProjection.schemaLayout(self.schema, fields[0..self.schema.columns.len], .claim);
+        try (Program{ .instructions = builder.instructions[0..builder.count] }).validateCollations(layout.typeOf(), layout.collations);
+        try self.add(builder.count);
+    }
+};
+
 pub fn compile(allocator: std.mem.Allocator, program: a.Program, target: p.StreamQueue.Partition, schema: f.TableSchema.Schema) !?p.QueuePredicate {
     try a.Codec.validate(program);
     try target.validate();
@@ -173,4 +269,40 @@ test "application acquisition predicates retain native schema target and SQL nul
     defer invalid.deinit();
     try t.expectError(error.InvalidQueuePredicate, compile(t.allocator, invalid.program, target, schema));
     try t.expectError(error.InvalidQueuePredicate, validate(invalid.program, schema));
+}
+
+test "analysis predicates keep scalar parameters separate and native forms bounded" {
+    const t = std.testing;
+    const schema: f.TableSchema.Schema = .{ .object = 4, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "id", .type = .int64 }} };
+    const parameters: []const a.Types.Field = &.{
+        .{ .name = "enabled", .value = .public(.boolean) },
+        .{ .name = "limit", .value = .public(.integer) },
+    };
+    for ([_][]const u8{ "enabled", "id = 7 AND enabled", "NOT enabled OR id > 2", "enabled IS NOT NULL", "limit > 4", "4 < limit" }) |predicate| {
+        const source = try std.fmt.allocPrint(t.allocator, "CREATE DATAFLOW x FROM QUEUE jobs AS event WHERE {s} AS BEGIN REQUIRE TRUE ELSE 'Refused'; END;", .{predicate});
+        defer t.allocator.free(source);
+        var parsed = try a.parse(t.allocator, source, null);
+        defer parsed.deinit();
+        var bound = try a.Types.bindForAnalysis(t.allocator, parsed.program, &.{.{ .name = "jobs", .kind = .queue, .fields = &.{.{ .name = "id", .value = .public(.integer) }} }}, parameters, null);
+        defer bound.deinit();
+        try validateForAnalysis(parsed.program, schema, parameters);
+        try t.expectError(error.UnknownColumn, validate(parsed.program, schema));
+    }
+    for ([_][]const u8{ "id = limit", "limit = id", "NOW() > 0", "id + 1 = 7", "TRUE = TRUE" }) |predicate| {
+        const source = try std.fmt.allocPrint(t.allocator, "CREATE DATAFLOW x FROM QUEUE jobs AS event WHERE {s} AS BEGIN REQUIRE TRUE ELSE 'Refused'; END;", .{predicate});
+        defer t.allocator.free(source);
+        var parsed = try a.parse(t.allocator, source, null);
+        defer parsed.deinit();
+        try t.expectError(error.InvalidQueuePredicate, validateForAnalysis(parsed.program, schema, parameters));
+    }
+    // 16 doubly negated leaves plus 15 conjunctions fit; two more NOTs exceed 64 even
+    // though parameter leaves never become native predicate instructions.
+    var leaves: [16][]const u8 = @splat("NOT NOT enabled");
+    const predicate = try std.mem.join(t.allocator, " AND ", &leaves);
+    defer t.allocator.free(predicate);
+    const source = try std.fmt.allocPrint(t.allocator, "CREATE DATAFLOW x FROM QUEUE jobs AS event WHERE NOT NOT ({s}) AS BEGIN REQUIRE TRUE ELSE 'Refused'; END;", .{predicate});
+    defer t.allocator.free(source);
+    var parsed = try a.parse(t.allocator, source, null);
+    defer parsed.deinit();
+    try t.expectError(error.PredicateTooLarge, validateForAnalysis(parsed.program, schema, parameters));
 }
