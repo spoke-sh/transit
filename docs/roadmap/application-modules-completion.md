@@ -2,6 +2,14 @@
 
 [Milestone 12](12-application-modules-compilation-and-testing.md) · **Status: In Progress** · Review draft updated 2026-11-15
 
+**Ownership update — 2026-11-20:** Compiler delivery now follows the
+[expanded transitc roadmap](https://github.com/spoke-sh/transitc/blob/main/docs/roadmap/README.md).
+This supporting record preserves the earlier review basis, approved units and
+source-specific evidence; its compiler implementation sequence is historical.
+[Transit M12](12-application-modules-compilation-and-testing.md) retains runtime
+handoffs and joint acceptance. Neither milestone completion nor new validation
+is implied by this transfer.
+
 Complete recursive `.transit` application authoring by letting an application
 compose typed modules, review a deterministic SQL build or migration, execute it
 through ordinary database owners, and test its behavior and recovery from the

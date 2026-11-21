@@ -57,33 +57,23 @@ measurements, and they do not assume that modeling or reasoning is solved.
 
 The [planned source/build model](../handbook/reference/applications.md#planned-source-language-and-build-model)
 provides the authoring path: recursively compose typed `.transit` modules,
-describe builds in that same language, and emit executable `.sql` for statements
-or explicit migrations. [M12](12-application-modules-compilation-and-testing.md)
-owns source ANTLR grammar, the typed core, effect/ownership/transition contracts
-and selected TLA+/Lean correspondence gates alongside that toolchain. Later
-compilation and language adapters reuse its semantics rather than introducing
-another build or execution authority.
-The [source grammar and typed-core slice](application-source-grammar-implementation.md)
-adds independent ANTLR/Zig comparisons, embedded SQL and stage checks,
-source round-trips and the contract for subsequent language features. The
-[typed-target slice](application-typed-target-implementation.md) implements nominal
-source values, closed variants, exhaustive compile-time matching and typed
-public Table exports, with selected Lean laws and independent SQL execution.
-The earlier typed-target record retains its incomplete qualification at that
-source. The public Queue build/test foundation subsequently merged in
-[PR #450](https://github.com/spoke-sh/transit/pull/450); its final CI results are
-reconciled in the [next-slice plan](application-typed-queue-implementation.md#source-basis-and-existing-owners).
-That slice implements actionable diagnostics and nominal types through public
-Queue programs, with [scoped qualification](../history/qualification/query.md#actionable-source-diagnostics-and-nominal-queue-programs--2026-11-13)
-and retained failure evidence. The [completion implementation plan](application-modules-completion.md) sequences
-the remaining M12 review units, external runtime gates and immediate unblocked
-slices at `424cc32e8`, starting with Table migration synthesis and returning
-inline calls while preserving delivered helpers and integrating M13 serving
-contracts. The earlier
-[remaining M12 implementation plan](application-remaining-implementation.md)
-retains the historical `bc849156a` basis across richer typed composition,
-runtime encapsulation, protected workflows, migrations and replay qualification.
-Dynamic typed commands and reference-only exports remain subsequent work.
+describe builds in that same language, and emit executable SQL for statements or
+explicit migrations. The compiler delivery plan now lives in the
+[transitc roadmap](https://github.com/spoke-sh/transitc/blob/main/docs/roadmap/README.md),
+expanded from M12 into typed compilation, workspace/developer tooling, migration
+synthesis, protected workflows, deterministic testing and full application
+qualification. [M12](12-application-modules-compilation-and-testing.md) retains
+Transit's runtime contracts, compatibility handoffs and joint acceptance gates.
+Its status remains In Progress; transferring compiler ownership completes no
+runtime or qualification criterion.
+
+The source-specific compiler implementation plans and
+[completion plan](application-modules-completion.md) remain historical records of
+delivered slices, approvals and retained failures. The
+[M12 handoff](12-application-modules-compilation-and-testing.md#compiler-plan-handoff)
+links their new delivery owners and the original D1–D6/P0–P6 scope. Current
+capabilities are defined by the public references and exact contracts, not those
+historical plans.
 
 ## Performance ambition
 
@@ -161,7 +151,7 @@ combines that evidence at one revision.
 | 9 | [Shared client foundation and language-native APIs](09-client-foundation-and-language-apis.md) | In Progress ([remaining implementation plan](09-client-foundation-and-language-apis.md#remaining-implementation-plan--2026-11-01)) | Build on delivered Catalog/SQL context and local recovery storage; complete coordination, ordinary settlement, managed handles, independent bindings and installed language APIs; compose available direct KV/Stream/Queue and native mixed transactions, with Documents gated by M7 |
 | 10 | [Standards, collations and historical catalogs](10-standards-and-catalogs.md) | In Progress ([remaining implementation plan, 2026-11-02](10-standards-and-catalogs.md#remaining-implementation-plan--2026-11-02)) | Delivered collations/companion semantics, CHECK/staged-FK definitions, retained catalogs/common cuts, historical SQL/views and shared inspection; close semantic/consumer regressions, recovery/collection and independent-reader evidence, bounded-work checks and common-revision qualification |
 | 11 | [Indexing model, access paths and online maintenance](11-indexing-and-access-paths.md) | Planned | Shared index definitions, bounded ordered/covering/partial access, fine-grained key-range SSI conflict tracking, index-backed `FOREIGN KEY` enforcement and recoverable online index/table builds |
-| 12 | [Recursive `.transit` modules, SQL compilation, builds and testing](12-application-modules-compilation-and-testing.md) | In Progress ([completion plan, 2026-11-15](application-modules-completion.md)) | Public Table/Stream/Queue builds, Queue program tests, typed resource exports, pure functions, ordered guards, inline procedures and typed returning calls are implemented. Explicit-basis Table migrations support new Tables and safe trailing columns with immutable SQL and original-operation recovery; [qualification](../history/qualification/query.md#explicit-basis-table-migrations-and-returning-inline-calls--2026-11-16) records eleven scoped Lean laws and source-specific runtime evidence. Remaining work covers broader migrations, runtime variants, `EXPORT REFERENCE` grants, protected workflows, conditional replacement, replay testing and the six-domain baseline; the [earlier plan](application-remaining-implementation.md) remains historical context |
+| 12 | [Compiler and runtime integration](12-application-modules-compilation-and-testing.md) | In Progress | Supply runtime SQL, authority, migration/replacement and compiled-case host contracts for the [transitc compiler roadmap](https://github.com/spoke-sh/transitc/blob/main/docs/roadmap/README.md); qualify generated SQL, immutable history and deterministic tests at compatible revisions. Preserve delivered compiler slices and the original full-application acceptance gates. |
 | 13 | [Declarative serving and reactive dataflows](13-declarative-serving-and-reactive-dataflows.md) | In Progress ([implementation plan](declarative-serving-implementation.md)) | Station-independent publication, typed commands/results, HTTP/SSE/WebSocket and native bindings, explicit subscription lifetimes and recovery, and installed browser/REPL consumption; retire UI-definition dependencies and migrate Board to shared server hosting |
 
 ### Phase II: Data composition, performance and interface coverage
@@ -354,29 +344,29 @@ interface expansion:
 The source/build design uses a higher-order SQL dialect rather than a separate
 application command family. All items below are planned:
 
-1. **Use `.transit` for source and `build.transit` for builds in that same language ([D1](12-application-modules-compilation-and-testing.md#d1--one-source-dialect-and-build-graph-executable-sql-outputs)).**
+1. **Use `.transit` for source and `build.transit` for builds in that same language ([D1](https://github.com/spoke-sh/transit/blob/4e47372a2739444d30058934dd0bb8bd703ef65c/docs/roadmap/12-application-modules-compilation-and-testing.md#d1--one-source-dialect-and-build-graph-executable-sql-outputs)).**
    `transitc build` resolves, checks and specializes a program into executable
    Transit `.sql`. The output runs through ordinary statement owners or the
    existing migration lifecycle without source repositories or a build interpreter.
-2. **Compose typed modules recursively across workspaces and repositories ([D2](12-application-modules-compilation-and-testing.md#d2--recursive-typed-modules-repository-dependencies-and-explicit-stateful-instances)).**
+2. **Compose typed modules recursively across workspaces and repositories ([D2](https://github.com/spoke-sh/transit/blob/4e47372a2739444d30058934dd0bb8bd703ef65c/docs/roadmap/12-application-modules-compilation-and-testing.md#d2--recursive-typed-modules-repository-dependencies-and-explicit-stateful-instances)).**
    Child builds, module-valued parameters and exported constructors use the same
    interfaces as remote dependencies. Separate packages/modules from SQL schemas;
    explicitly bind durable instances. Lock exact revisions/content and transitive
    inputs, record local overrides, and support frozen offline rebuilds. Reject
    dependency cycles and conflicting versions of one stateful instance.
-3. **Lower higher-order abstractions to SQL with shared semantics ([D3](12-application-modules-compilation-and-testing.md#d3--composable-compile-time-abstractions-profile-function-guard-procedure)).**
+3. **Lower higher-order abstractions to SQL with shared semantics ([D3](https://github.com/spoke-sh/transit/blob/4e47372a2739444d30058934dd0bb8bd703ef65c/docs/roadmap/12-application-modules-compilation-and-testing.md#d3--composable-compile-time-abstractions-profile-function-guard-procedure)).**
    Typed profiles, functions, guards and procedures expand hygienically with
    source maps. Compile-time work and output are bounded; runtime authorization,
    logical types, definition bindings and transaction boundaries survive emission.
-4. **Share whole-program checking and independent SQL execution ([D4](12-application-modules-compilation-and-testing.md#d4--shared-compiler-bounded-evaluation-and-canonical-sql-emission-transitc-build)).**
+4. **Share whole-program checking and independent SQL execution ([D4](https://github.com/spoke-sh/transit/blob/4e47372a2739444d30058934dd0bb8bd703ef65c/docs/roadmap/12-application-modules-compilation-and-testing.md#d4--shared-compiler-bounded-evaluation-and-canonical-sql-emission-transitc-build)).**
    Block-aware scanning separates file, statement and graph budgets. Capability
    and secret analysis precede emission; reparse generated SQL through ordinary
    compilers and compare definitions/outcomes with hand-expanded equivalents.
-5. **Generate immutable migrations against an explicit prior state ([P4](12-application-modules-compilation-and-testing.md#p4--desired-state-to-migration-synthesizer-schemadefinition-diffing-and-create-or-replace-lifecycle)).**
+5. **Generate immutable migrations against an explicit prior state ([P4](https://github.com/spoke-sh/transit/blob/4e47372a2739444d30058934dd0bb8bd703ef65c/docs/roadmap/12-application-modules-compilation-and-testing.md#p4--desired-state-to-migration-synthesizer-schemadefinition-diffing-and-create-or-replace-lifecycle)).**
    Build targets compare desired definitions with a declared basis and explicit
    transforms. Existing migration owners apply the frozen SQL and recover original
    work; builds neither apply changes nor recompile accepted migrations.
-6. **Run tests through the same graph and SQL emitter ([D6](12-application-modules-compilation-and-testing.md#d6--deterministic-offline-unit-testing-effectclock-simulation-and-yield-point-fault-injection-transitc-test)).**
+6. **Run tests through the same graph and SQL emitter ([D6](https://github.com/spoke-sh/transit/blob/4e47372a2739444d30058934dd0bb8bd703ef65c/docs/roadmap/12-application-modules-compilation-and-testing.md#d6--deterministic-offline-unit-testing-effectclock-simulation-and-yield-point-fault-injection-transitc-test)).**
    `transitc test` reads `build.transit`, compiles `.test.transit` bodies and executes
    their SQL through isolated real database components. Runner-only clocks, mocks
    and fault schedules preserve uncertainty; simulation is separate from provider
