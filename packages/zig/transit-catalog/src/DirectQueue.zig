@@ -19,9 +19,11 @@ pub const Request = union(enum) {
     cancel: Mutation.Request,
     page: struct { cursor: read.Cursor, limits: Queue.ClaimReadLimits },
     wait: struct { claim: q.Claim, milliseconds: u32 },
+    /// Installed host verifies a committed original-selection row before native admission.
+    admit_effect: struct { cursor: read.Cursor, signed: p.Growth.SignedRequest },
 
     pub fn mutation(self: Request) bool {
-        return self == .mutate or self == .wait or self == .cancel;
+        return self == .mutate or self == .wait or self == .cancel or self == .admit_effect;
     }
     pub fn control(self: Request) bool {
         return switch (self) {
@@ -35,7 +37,7 @@ pub const Request = union(enum) {
             .observe, .current_time => |value| value,
             .mutate => |value| value.work.target(),
             .operation, .cancel => |value| value.target(),
-            .page => |value| value.cursor.receipt.claim.target,
+            inline .page, .admit_effect => |value| value.cursor.receipt.claim.target,
             .wait => |value| value.claim.target,
         };
     }
@@ -44,14 +46,14 @@ pub const Request = union(enum) {
             .mutate => |value| value.work.access(),
             .operation, .cancel => |value| value.access(),
             .observe, .current_time => .inspect,
-            .page, .wait => .acquire,
+            .page, .wait, .admit_effect => .acquire,
         };
     }
     pub fn identity(self: Request) ?d.Operation {
         return switch (self) {
             .mutate => |value| value.work.identity(),
             .operation, .cancel => |value| value.identity(),
-            .page => |value| value.cursor.receipt.claim.operation,
+            inline .page, .admit_effect => |value| value.cursor.receipt.claim.operation,
             .wait => |value| value.claim.operation,
             .observe, .current_time => null,
         };
@@ -74,6 +76,13 @@ pub const Request = union(enum) {
                 if (value.limits.rows == 0 or value.limits.rows > s.QueueSelection.max_rows or value.limits.encoded_bytes == 0 or value.limits.encoded_bytes > 4 * 1024 * 1024) return error.InvalidQueueReadBudget;
             },
             .observe, .current_time => {},
+            .admit_effect => |value| {
+                try value.cursor.validate();
+                try p.Growth.validate(value.signed.request);
+                const native = value.signed.request;
+                if (native.command != .admit_effect or native.principal != principal or native.realm != scope.realm or value.cursor.complete()) return error.InvalidEffectSource;
+                try self.target().requireSame(native.command.admit_effect.source.record.target);
+            },
             .wait => |value| {
                 try value.claim.validate();
                 if (value.milliseconds == 0 or value.milliseconds > c.client.WaitHint.max_ms) return error.InvalidQueueWait;
@@ -102,6 +111,7 @@ pub const Result = union(enum) {
     recovering: Queue.Recovery,
     cut: q.Cut,
     current_time: read.TimeObservation,
+    effect_admission: struct { effect: p.Growth.Effect, position: u64 },
     operation: ?Receipt,
     page: Page,
     /// No claim was accepted by this attempt. Another concurrent attempt with
@@ -242,6 +252,7 @@ fn applyOriginal(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog:
     }
     const result: Result = switch (selected) {
         .wait => unreachable,
+        .admit_effect => return error.EffectAdmissionUnavailable,
         .cancel => |value| blk: {
             try authorize(current.guard);
             try catalog.claimQueueBinding(scratch, catalog.store.objects, binding.?);

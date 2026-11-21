@@ -1787,7 +1787,8 @@ fn transactionDispatch(service: *@import("LocalTableService.zig"), owner_role: u
     const begun = try dispatch(service, .{ .transaction = .{ .begin = begin } });
     defer begun.deinit();
     try t.expect(begun.value.result.transaction.begun.binding.intent.transaction.begin.objects.count >= 12);
-    const acquired = try dispatch(service, .{ .transaction = .{ .acquire = token } });
+    (try dispatch(service, .{ .transaction = .{ .acquire = token } })).deinit();
+    const acquired = try dispatch(service, .{ .transaction = .{ .inspect = token } });
     defer acquired.deinit();
     try t.expect(acquired.value.result.transaction.acquired.cut.sources.count >= 12);
     var authorization = try service.engine.authorization();
@@ -3875,4 +3876,161 @@ fn actorPopulationCollectionSchedule(service: *@import("LocalTableService.zig"),
     }
     try t.expectEqual(body.len, read_offset);
     (try dispatch(&adapter, .{ .capture_read = .{ .close = .{ .handle = cap_opened.value.result.capture_read.opened.handle, .operation = Setup.op(config, 95001) } } })).deinit();
+}
+
+test "committed Queue effect admission verifies originals and current native disclosure" {
+    try dataSchedule(effectAdmissionFixture);
+}
+
+fn effectAdmissionFixture(service: *@import("LocalTableService.zig"), role: u64) !void {
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
+    const intent: c.DirectLog.Intent = .{ .kind = .queue, .namespace = 1, .name = try .init("effect_intents"), .action = .{ .create = .{
+        .owner = role,
+        .schema = .{ .object = 303, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{} },
+        .configuration = .{ .partitioning = .{ .count = 1, .key_column = null, .hash = .sha256_64 }, .retention = .{ .max_age_ms = null }, .policy = .{ .queue = .{ .ordering = .unordered, .key_column = null, .lease_ms = 100, .maximum_lease_ms = 1000, .maximum_attempts = 5, .backoff = .{ .initial_ms = 10, .maximum_ms = 1000, .multiplier = 2 }, .dead_letter = null } } },
+        .limits = .{ .append_rows = 128, .append_bytes = 1024 * 1024, .claim_rows = 16, .read_rows = 128, .read_bytes = 1024 * 1024, .active_leases = 64, .waiters = 64, .timer_steps = 64 },
+    } } };
+    const binding: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = service.configuration.scope, .principal = 101, .operation = 900 }, .target = .{ .scope = service.configuration.scope, .branch = 1, .object = 303 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(t.allocator) };
+    (try dispatch(service, .{ .log_admit = try c.DirectLogProtocol.Ddl.encode(arena.allocator(), .{ .binding = binding, .intent = intent }) })).deinit();
+    const created = try dispatch(service, .{ .log_operation = .{ .binding = binding, .command = .execute, .steps = 32 } });
+    defer created.deinit();
+    try effectAdmissionSchedule(service, role, created.value.result.log_operation.operation.resulting.?, intent.action.create.schema);
+}
+
+fn effectAdmissionSchedule(service: *@import("LocalTableService.zig"), role: u64, declaration: c.DirectLog.Definition, schema: c.fuze.TableSchema.Schema) !void {
+    const core = @import("transit_core");
+    const w = c.DirectTableProtocol;
+    const Clock = struct {
+        now: u64 = 100,
+        fn read(raw: *anyopaque) !core.Time.Sample {
+            return .{ .unix_ms = @as(*@This(), @ptrCast(@alignCast(raw))).now, .error_ms = 5 };
+        }
+    };
+    var clock: Clock = .{};
+    const engine = service.engine;
+    const previous_clock = engine.clock;
+    defer engine.clock = previous_clock;
+    engine.clock = .{ .context = &clock, .read = Clock.read };
+    const pid = try command(engine, .{ .spawn = .{} });
+    _ = try change(engine, .{ .grant = .{ .object = .{ .kind = .process, .id = pid }, .grantee = role, .privileges = p.permission(.execute) | p.permission(.effect) | p.permission(.inspect) } });
+    _ = try command(engine, .{ .own = .{ .pid = pid, .expected_generation = 0, .worker = 101 } });
+    const scope = service.configuration.scope;
+    const target: p.StreamQueue.Partition = .{ .definition = g.current_definition, .interpretation = declaration.stored.declaration.interpretation, .partition = 0 };
+    const connection: w.Connection = .{ .scope = scope, .branch = 1, .audience = service.configuration.audience, .principal = 101, .role = null };
+    const token: c.DirectClientToken.Key = .{ .definition = g.current_definition, .connection = connection, .account = @splat(51), .token = @splat(52) };
+    const begin_op: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 101, .operation = 142000 };
+    var append_op = begin_op;
+    append_op.operation += 1;
+    const execution: p.Transaction.Execution = .{ .realm = 42, .pid = pid, .principal = 101, .generation = 1, .code = 1, .workload = null, .input = null };
+    const selected = [_]p.Transaction.Target{.{ .object = target.interpretation.object, .kind = .queue, .partition = 0 }};
+    (try dispatch(service, .{ .transaction = .{ .begin = .{ .key = token, .fingerprint = @splat(53), .operation = begin_op, .namespace = 1, .mode = .serializable, .selection = .{ .explicit_objects = &selected }, .limits = c.DirectTransaction.default_limits, .deadline = null, .execution = execution, .budget = .{} } } })).deinit();
+    (try dispatch(service, .{ .transaction = .{ .acquire = token } })).deinit();
+    const acquired = try dispatch(service, .{ .transaction = .{ .inspect = token } });
+    defer acquired.deinit();
+    const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 42 } } }};
+    var buffer: [8192]u8 = undefined;
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const bytes = try c.storage.LogBatch.encode(schema, append_op, .queue, &.{.{ .cells = &cells }}, &buffer);
+    const staged = try dispatch(service, .{ .transaction = .{ .stage_log = .{ .key = token, .basis = acquired.value.result.transaction.status.revision, .sequence = 1, .work = .{ .append = .{ .target = target, .operation = append_op, .kind = .queue, .producer = null, .rows = 1, .payload = c.storage.LogBatch.content(bytes) } }, .payload = try w.Binary.encode(arena.allocator(), bytes) } } });
+    defer staged.deinit();
+    (try dispatch(service, .{ .transaction = .{ .log_statement = .{ .key = token, .request = staged.value.result.transaction.staged_log, .execute = true } } })).deinit();
+    // Uncommitted work is not visible as a source of native effect authority.
+    const hidden = try dispatch(service, .{ .queue = .{ .observe = target } });
+    defer hidden.deinit();
+    try t.expectEqual(0, hidden.value.result.queue.cut.next);
+    var settle_op = append_op;
+    settle_op.operation += 1;
+    for (0..32) |_| {
+        const settled = try dispatch(service, .{ .transaction = .{ .settle = .{ .key = token, .operation = settle_op, .command = .commit, .steps = 32 } } });
+        defer settled.deinit();
+        if (settled.value.result.transaction.status.cleanup_complete) break;
+    } else return error.FixtureBudget;
+    var claim_op = settle_op;
+    claim_op.operation += 1;
+    const claimed = try dispatch(service, .{ .queue = .{ .mutate = .{ .work = .{ .claim = .{ .target = target, .operation = claim_op, .maximum = 1, .lease_ms = 100, .predicate = null } }, .payload = null } } });
+    defer claimed.deinit();
+    const cursor: p.QueueRead.Cursor = .{ .receipt = claimed.value.result.queue.operation.?.claim, .next = 0 };
+    const page = try dispatch(service, .{ .queue = .{ .page = .{ .cursor = cursor, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } } });
+    defer page.deinit();
+    const row = page.value.result.queue.page.rows[0];
+    const encoded = try row.encoded.decode(arena.allocator(), 8192);
+    var row_digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(encoded, &row_digest, .{});
+    const source: p.EffectAdmission.Source = .{ .record = .{ .target = target, .operation = row.operation, .ordinal = row.ordinal }, .offset = row.lease.original.offset, .execution = row.execution.?, .row_sha256 = row_digest };
+    try t.expectEqualDeep(begin_op, source.execution.transaction);
+    var native: g.Request = .{ .realm = 42, .principal = 101, .sequence = (try engine.principal(101)).sequence + 1, .command = .{ .admit_effect = .{ .pid = pid, .generation = 1, .source = source } } };
+    const signed = try g.sign(native, try key(29));
+    try t.expectError(error.UnverifiedEffectIntent, engine.submit(signed));
+    var forged = native;
+    forged.command.admit_effect.source.row_sha256[0] ^= 1;
+    try t.expectError(error.InvalidEffectSource, dispatch(service, .{ .queue = .{ .admit_effect = .{ .cursor = cursor, .signed = try g.sign(forged, try key(29)) } } }));
+    const Lost = struct {
+        fn reply(_: *anyopaque, _: *Engine) !void {
+            return error.LostAcknowledgement;
+        }
+    };
+    service.before_reply = .{ .context = &clock, .run = Lost.reply };
+    try t.expectError(error.LostAcknowledgement, dispatch(service, .{ .queue = .{ .admit_effect = .{ .cursor = cursor, .signed = signed } } }));
+    service.before_reply = null;
+    const RevokeInspection = struct {
+        pid: u64,
+        role: u64,
+        fn reply(raw: *anyopaque, authority: *Engine) !void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            _ = try change(authority, .{ .revoke_privileges = .{ .object = .{ .kind = .process, .id = self.pid }, .grantee = self.role, .privileges = p.permission(.inspect) } });
+        }
+    };
+    var revoke: RevokeInspection = .{ .pid = pid, .role = role };
+    service.before_reply = .{ .context = &revoke, .run = RevokeInspection.reply };
+    try t.expectError(error.Forbidden, dispatch(service, .{ .queue = .{ .admit_effect = .{ .cursor = cursor, .signed = signed } } }));
+    service.before_reply = null;
+    _ = try change(engine, .{ .grant = .{ .object = .{ .kind = .process, .id = pid }, .grantee = role, .privileges = p.permission(.inspect) } });
+    _ = try change(engine, .{ .revoke_privileges = .{ .object = .{ .kind = .process, .id = pid }, .grantee = role, .privileges = p.permission(.effect) } });
+    try t.expectError(error.Forbidden, dispatch(service, .{ .queue = .{ .admit_effect = .{ .cursor = cursor, .signed = signed } } }));
+    _ = try change(engine, .{ .grant = .{ .object = .{ .kind = .process, .id = pid }, .grantee = role, .privileges = p.permission(.effect) } });
+    // Reopen native catalogs from disk and recover the same accepted source.
+    engine.* = try Engine.open(engine.journal, engine.page_store, engine.genesis);
+    engine.clock = .{ .context = &clock, .read = Clock.read };
+    clock.now = 1000; // Original lease has expired; it grants no send authority.
+    const recovered = try dispatch(service, .{ .queue = .{ .admit_effect = .{ .cursor = cursor, .signed = signed } } });
+    defer recovered.deinit();
+    const effect = recovered.value.result.queue.effect_admission.effect;
+    try t.expectEqual(.pending, effect.phase);
+    const attempt = try command(engine, .{ .dispatch = .{ .pid = pid, .effect = effect.id } });
+    _ = try command(engine, .{ .own = .{ .pid = pid, .expected_generation = 1, .worker = 101 } });
+    native.sequence += 1;
+    native.command.admit_effect.generation = 2;
+    const replacement = try dispatch(service, .{ .queue = .{ .admit_effect = .{ .cursor = cursor, .signed = try g.sign(native, try key(29)) } } });
+    defer replacement.deinit();
+    try t.expectEqual(effect.id, replacement.value.result.queue.effect_admission.effect.id);
+    try t.expectEqual(attempt, replacement.value.result.queue.effect_admission.effect.attempt.?);
+    try t.expectError(error.AttemptAlreadyAuthorized, command(engine, .{ .dispatch = .{ .pid = pid, .effect = effect.id } }));
+    _ = try command(engine, .{ .observe = .{ .pid = pid, .effect = effect.id, .attempt = attempt, .result = try p.Value.init("complete") } });
+    try t.expectEqual(0, (try engine.process(pid)).admitted);
+    // A caller can enqueue identical-looking bytes, but cannot mint the
+    // execution provenance that the installed verifier requires.
+    var external_op = append_op;
+    external_op.operation += 100;
+    const external_bytes = try c.storage.LogBatch.encode(schema, external_op, .queue, &.{.{ .cells = &cells }}, &buffer);
+    (try dispatch(service, .{ .queue = .{ .mutate = .{ .work = .{ .enqueue = .{ .target = target, .operation = external_op, .kind = .queue, .producer = null, .rows = 1, .payload = c.storage.LogBatch.content(external_bytes) } }, .payload = try w.Binary.encode(arena.allocator(), external_bytes) } } })).deinit();
+    var external_claim = claim_op;
+    external_claim.operation += 100;
+    const selected_external = try dispatch(service, .{ .queue = .{ .mutate = .{ .work = .{ .claim = .{ .target = target, .operation = external_claim, .maximum = 2, .lease_ms = 100, .predicate = null } }, .payload = null } } });
+    defer selected_external.deinit();
+    const external_cursor: p.QueueRead.Cursor = .{ .receipt = selected_external.value.result.queue.operation.?.claim, .next = 1 };
+    const external_page = try dispatch(service, .{ .queue = .{ .page = .{ .cursor = external_cursor, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } } });
+    defer external_page.deinit();
+    const external_row = external_page.value.result.queue.page.rows[0];
+    try t.expect(external_row.execution == null);
+    var false_source = source;
+    false_source.record.operation = external_op;
+    false_source.offset = external_row.lease.original.offset;
+    std.crypto.hash.sha2.Sha256.hash(try external_row.encoded.decode(arena.allocator(), 8192), &false_source.row_sha256, .{});
+    native.sequence += 1;
+    native.command.admit_effect.source = false_source;
+    try t.expectError(error.UnverifiedEffectIntent, dispatch(service, .{ .queue = .{ .admit_effect = .{ .cursor = external_cursor, .signed = try g.sign(native, try key(29)) } } }));
+    try t.expect(try engine.effectAdmission(pid, (try false_source.commitment()).key) == null);
 }

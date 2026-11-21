@@ -151,17 +151,18 @@ test "owned direct responses unwind retained arenas on a bounded stack" {
 
 pub const Attempt = struct {
     mutation: ?Mutation = null,
-    pub const Mutation = struct { action: std.meta.Tag(w.Action), identity: ?p.DataLifecycle.Operation };
+    pub const Mutation = struct { action: std.meta.Tag(w.Action), identity: ?p.DataLifecycle.Operation, effect_source: ?p.EffectAdmission.Source = null };
     fn begin(self: *Attempt, request: *const w.Request) void {
         if (!request.transport().mutation) return;
         self.mutation = .{
             .action = std.meta.activeTag(request.action),
+            .effect_source = if (request.action == .queue and request.action.queue == .admit_effect) request.action.queue.admit_effect.signed.request.command.admit_effect.source else null,
             .identity = switch (request.action) {
                 .source => |value| if (value == .declaration) value.declaration.request.binding.identity else null,
                 .descriptor => |value| if (value == .declaration) value.declaration.request.binding.identity else null,
                 .stream => |value| value.identity(),
                 .capture_read => |value| value.identity(),
-                .queue => |value| value.identity(),
+                .queue => |value| if (value == .admit_effect) null else value.identity(),
                 .kv => |value| value.identity(),
                 .kv_declaration => |value| value.declaration.binding.identity,
                 .document_declaration => |value| value.declaration.ddl.binding.identity,
@@ -183,6 +184,17 @@ pub const Attempt = struct {
     /// domain work; an error code cannot turn this attempt into rejection.
     pub fn failure(self: Attempt, cause: anyerror, native: ?p.ErrorCode) !?p.Diagnostic {
         const mutation = self.mutation orelse return null;
+        if (mutation.effect_source) |source| {
+            var result = try p.Diagnostic.init("catalog.direct_outcome_unknown", .unavailable, .submit, .unknown, .saved_intent, "Effect admission is uncertain. Preserve the signed admission and committed Queue source. Inspect the original effect_admission key under current rights; the scheduling claim outcome does not settle this admission.");
+            result.cause = try p.Diagnostic.Code.init(@errorName(cause));
+            const binding = try source.commitment();
+            try result.text(.source_key, .caller, &std.fmt.bytesToHex(binding.key, .lower));
+            try result.text(.operation, .caller, "effect_admission");
+            if (native) |value| try result.text(.native_cause, .authority, @tagName(value));
+            try result.action(.inspect_status);
+            try result.validate();
+            return result;
+        }
         var result = try p.Diagnostic.init("catalog.direct_outcome_unknown", .unavailable, .submit, .unknown, if (mutation.identity != null) .saved_intent else .none, if (mutation.identity != null) "The direct operation outcome is unknown. Preserve its original saved binding and inspect that operation under current rights before deciding how to continue." else if (mutation.action == .historical_catalog) "The historical catalog operation outcome is unknown. Preserve the original selection, account and token. Inspect and resume that original acquisition or release; do not choose a newer cut." else if (mutation.action == .branch) "The branch operation outcome is unknown. Preserve the original account, token and complete request. Inspect that token under current source rights, then resume or cancel the original branch preparation." else if (mutation.action == .transaction) "The transaction control outcome is unknown. Preserve the original account, token, statement and commit operation identities. Inspect that transaction under current rights before resuming its original work." else if (mutation.action == .client_token) "The client-token binding outcome is unknown. Preserve the original account, token and request fingerprint. Look up that token under current rights and use only its accepted intent reference." else if (mutation.action == .flush) "The physical flush outcome is unknown. Preserve the original object and exclusive acceptance cut. Inspect current storage coverage or repeat that same target under current rights." else "The catalog initialization outcome is unknown. Inspect the catalog under the original connection and current rights before deciding how to continue.");
         result.cause = try p.Diagnostic.Code.init(@errorName(cause));
         if (mutation.identity) |identity| result.identity = .{ .domain = .catalog, .id = .init(identity.operation), .realm = .init(identity.scope.realm), .resource = .init(identity.scope.resource) };

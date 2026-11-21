@@ -2,6 +2,7 @@
 pub const catalog = @import("transit_catalog");
 pub const Actor = @import("Actor.zig");
 pub const Turn = @import("Turn.zig");
+pub const Effect = @import("Effect.zig");
 pub const Envelope = @import("Envelope.zig");
 pub const Wait = @import("Wait.zig");
 pub const Timer = @import("Timer.zig");
@@ -16,6 +17,7 @@ test {
     _ = Actor;
     _ = Turn;
     _ = Envelope;
+    _ = Effect;
     _ = Wait;
     _ = Timer;
     _ = Runner;
