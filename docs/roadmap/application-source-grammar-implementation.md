@@ -1,6 +1,6 @@
 # Application source grammar and typed-core contract implementation plan
 
-[Milestone 12](12-application-modules-compilation-and-testing.md#next-language-slice) · **Status: Implemented; qualification in progress**
+[Milestone 12](https://github.com/spoke-sh/transit/blob/4e47372a2739444d30058934dd0bb8bd703ef65c/docs/roadmap/12-application-modules-compilation-and-testing.md#next-language-slice) · **Status: Implemented; qualification in progress**
 
 The reviewed scope below is implemented by the dedicated source grammar,
 structural Table templates, compiler-package formatter and independent

@@ -1,6 +1,6 @@
 # Nominal values, typed Table exports and exhaustive source matching
 
-[Milestone 12](12-application-modules-compilation-and-testing.md#next-language-slice) · **Status: Implemented — required qualification incomplete**
+[Milestone 12](https://github.com/spoke-sh/transit/blob/4e47372a2739444d30058934dd0bb8bd703ef65c/docs/roadmap/12-application-modules-compilation-and-testing.md#next-language-slice) · **Status: Implemented — required qualification incomplete**
 
 The implementation follows merged planning PR #442. The executable [source contract](../../contracts/APPLICATION_SOURCE_V1.md)
 owns the delivered syntax and restrictions; this document retains the reviewed
