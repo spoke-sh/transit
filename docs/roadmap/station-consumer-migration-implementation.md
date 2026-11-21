@@ -1,6 +1,6 @@
 # Milestone 6 connector and captured query migration implementation plan
 
-[Milestone 6](06-streams-queues-and-durable-runtime.md) · [Completion plan](streams-queues-runtime-completion.md) · **Status: Planned** · Review draft 2026-11-21
+[Milestone 6](06-streams-queues-and-durable-runtime.md) · [Completion plan](streams-queues-runtime-completion.md) · **Status: In Progress** · Updated 2026-11-21
 
 Implement **Unit E / Batch 7a** next: move connector intent, capture and retained
 query progress onto declared data and shared transactions. Start with one real
@@ -21,6 +21,37 @@ a remote response must never be reported as interchangeable outcomes.
 `7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5`
 (`transit.v1.transactional-log-origin.2026-11-19`). This is a source assessment
 and proposed execution sequence, not a new runtime qualification result.
+
+## E1 implementation for review
+
+The first implementation unit adds committed Queue effect admission to the
+installed service, deterministic native authority, shared catalog client and
+private transactional Station adapter. The service reads the retained original
+Queue selection and verifies its stored transaction origin and row digest before
+admission. A permanent source mapping resolves the original effect across lost
+replies and owner replacement, including after terminal effect collection.
+Current Queue and native rights still gate admission and disclosure. The
+[native contract](../../contracts/TRANSIT_V1.md#committed-queue-effect-admission)
+owns the exact proof, identity, recovery and retention rules.
+
+This replaces the source definition above with
+`ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff`
+(`transit.v1.committed-queue-effect-admission.2026-11-21`) through the current-v1
+cutover. Schemas, bindings, signing fixtures and consumers change together;
+existing installations require their matching build for recovery.
+
+The new schedules cover core admission/recovery, installed disk source
+verification and revocation after buffering, and the private Station `large`
+case's saved original across node replacement. The PR records executed gates
+and failures; this implementation entry is not a final common-revision or
+milestone qualification claim.
+
+E2 is the next implementation unit. Capture publication, durable pending
+directories and source/capture holds remain consumer obligations; the adapter
+does not save originals, ACK scheduling inputs or dispatch network effects.
+E3's installed transactional HTTP journey, E4–E6, public activation (F), Table
+work (G) and final qualification (H) remain pending. Existing native-turn
+Exchange consumers remain supported. E1 does not complete connector migration.
 
 ## Delivered foundation and remaining gaps
 

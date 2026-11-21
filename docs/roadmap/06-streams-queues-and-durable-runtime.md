@@ -26,7 +26,9 @@ and final integration obligations.
 The next [connector and captured-query implementation plan](station-consumer-migration-implementation.md)
 expands Unit E into six review units: original effect admission, transactional
 capture storage, one installed HTTP journey, remaining effect consumers,
-captured queries and server activation. Unit G's single-WAL Table token/commit
+captured queries and server activation. E1's verified committed Queue effect
+admission and private recovery adapter are implemented for review; capture
+storage and the installed HTTP journey remain pending. Unit G's single-WAL Table token/commit
 composition, `TRUNCATE` and inherited latency targets can proceed independently.
 Unit F's public ABI/11-SDK/example/Board cutover and global legacy delivery/turn
 removal remain jointly gated with M7 C4/C5/C7; Unit H qualifies one final

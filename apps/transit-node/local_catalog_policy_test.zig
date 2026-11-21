@@ -3955,6 +3955,7 @@ fn effectAdmissionSchedule(service: *@import("LocalTableService.zig"), role: u64
     const cursor: p.QueueRead.Cursor = .{ .receipt = claimed.value.result.queue.operation.?.claim, .next = 0 };
     const page = try dispatch(service, .{ .queue = .{ .page = .{ .cursor = cursor, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } } });
     defer page.deinit();
+    try t.expectEqual(1, page.value.result.queue.page.rows.len);
     const row = page.value.result.queue.page.rows[0];
     const encoded = try row.encoded.decode(arena.allocator(), 8192);
     var row_digest: [32]u8 = undefined;
@@ -4020,10 +4021,16 @@ fn effectAdmissionSchedule(service: *@import("LocalTableService.zig"), role: u64
     external_claim.operation += 100;
     const selected_external = try dispatch(service, .{ .queue = .{ .mutate = .{ .work = .{ .claim = .{ .target = target, .operation = external_claim, .maximum = 2, .lease_ms = 100, .predicate = null } }, .payload = null } } });
     defer selected_external.deinit();
-    const external_cursor: p.QueueRead.Cursor = .{ .receipt = selected_external.value.result.queue.operation.?.claim, .next = 1 };
-    const external_page = try dispatch(service, .{ .queue = .{ .page = .{ .cursor = external_cursor, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } } });
+    var external_cursor: p.QueueRead.Cursor = .{ .receipt = selected_external.value.result.queue.operation.?.claim, .next = 0 };
+    const external_page = try dispatch(service, .{ .queue = .{ .page = .{ .cursor = external_cursor, .limits = .{ .rows = 2, .encoded_bytes = 8192 } } } });
     defer external_page.deinit();
-    const external_row = external_page.value.result.queue.page.rows[0];
+    // Expired scheduling leases need their own maintenance transition. Locate
+    // the ordinary enqueue by identity instead of assuming redelivery order.
+    const external_index = for (external_page.value.result.queue.page.rows, 0..) |candidate, index| {
+        if (std.meta.eql(candidate.operation, external_op)) break index;
+    } else return error.MissingExternalIntent;
+    external_cursor.next = @intCast(external_index);
+    const external_row = external_page.value.result.queue.page.rows[external_index];
     try t.expect(external_row.execution == null);
     var false_source = source;
     false_source.record.operation = external_op;

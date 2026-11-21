@@ -25,9 +25,10 @@ committed-revision qualification pass (H) remains the completion gate.
   records implementation; retain its installed fault/performance acceptance
   obligations and H's final integration gates. These APIs remain internal.
 - The [connector and captured-query implementation plan](station-consumer-migration-implementation.md)
-  decomposes E into six review units. It identifies the missing effect-admission
-  link, capture ownership and retained-query migration before adapter work.
-  Its first implementation checkpoint is a real transactional HTTP journey.
+  decomposes E into six review units. E1's verified committed Queue effect
+  admission and private recovery adapter are implemented for review. E2's
+  capture ownership and E3's installed transactional HTTP journey remain the
+  next checkpoint; retained-query migration and public activation remain open.
 
 This refresh supersedes earlier next-step sequencing and remaining estimates.
 It preserves M6's R0–R10 acceptance criteria, source-attributed evidence and
