@@ -736,10 +736,12 @@ fn exerciseTimersAndPool(init: std.process.Init, client: c.DirectTableClient, ad
     var timed_caller: TimedCaller = .{ .caller_client = client, .timers_q = timers_queue, .peer_inbox = callee_inbox, .callee_pid = callee_spec.pid, .delay_ms = 4500 };
     var timed_callee: TimedCallee = .{ .return_inbox = caller_inbox };
 
-    // 1. Schedule timed call; ticket stays unclaimable on QueueTimingWheel before deadline_ms.
+    // 1. Schedule the timed call. Fixed-clock native Queue tests cover the
+    // before/at-deadline visibility boundary; Turn tests bind visible_ms to the
+    // ticket deadline. Real disk commit can take longer than the timer delay,
+    // so the first observer step must already carry the crash hook below.
     try enqueueEnvelope(&output, client, caller_inbox, 835001, caller_spec.pid, .{ .kind = .cast, .payload = "slow" });
     try t.expectEqual(Runner.Result.committed, try advanceComplete(&caller_runner, .{ .context = &timed_caller, .run = TimedCaller.handle }));
-    try t.expectEqual(s.Observer.Result.idle, try observer.step(10));
 
     // 2. Observer crash between TMO1 enqueue and ticket ACK deduplicates via deterministic d.Operation on restart.
     const CrashAtEnqueued = struct {
