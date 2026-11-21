@@ -1,123 +1,69 @@
 # Milestone 6 completion implementation plan
 
-[Milestone 6](06-streams-queues-and-durable-runtime.md) · **Status: In Progress** · Review draft updated 2026-11-18
+[Milestone 6](06-streams-queues-and-durable-runtime.md) · **Status: In Progress** · Review draft updated 2026-11-21
 
-Milestone 6 combines three major architectural initiatives: decoupling the
-database from `Station` actor turns, delivering first-class declarative
-`STREAM` and `QUEUE` primitives with mixed database transactions, and replacing
-`Station`'s legacy `GenServer`/`Turn` persistence with standard transactions over
-those database primitives. The first two initiatives and the shared-transaction
-and private-actor foundations of the third are implemented. Closing out the
-milestone now requires **finishing shared-transaction batching and turn cost,
-migrating public `Station` services, connectors and SDK consumers off legacy
-turns, closing single-WAL Table commit composition, `TRUNCATE` and inherited SQL
-latency targets, and qualifying one committed revision**.
+The database, declarative Stream/Queue operations and private transactional
+Station foundation are implemented. The next delivery is **connector and
+captured-query migration (Unit E)**, followed by the coordinated public
+Station/SDK/Document cutover (F). Independent Table commit composition,
+`TRUNCATE` and inherited SQL latency work (G) can proceed alongside E. One
+committed-revision qualification pass (H) remains the completion gate.
 
-**Review basis:** `main` at `c1f2680d9` (`2026-11-18`), shared definition
-[`06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5`](../../packages/zig/transit-protocol/src/Growth.zig)
-(`transit.v1.native-storage-retirement.2026-11-16`). Since the November 12
-version of this plan (`6552747cf`), `main` has landed:
+**Current review basis:** fetched `origin/main` at
+`aa52980ad93b5e32bee2c543c9f82bc3ab4f162a` on 2026-11-21, with
+[`Growth.current_definition`](../../packages/zig/transit-protocol/src/Growth.zig)
+`7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5`
+(`transit.v1.transactional-log-origin.2026-11-19`).
 
-- [PR #451](https://github.com/spoke-sh/transit/pull/451) and
-  [PR #452](https://github.com/spoke-sh/transit/pull/452)
-  ([read ownership](transaction-read-ownership.md)): database-owned caller
-  sequencing (`DirectTransactionSession`), `transit-data-client` transaction
-  handles and local journal (`Transaction`, `TransactionRecovery`), owned
-  private Table/KV transaction reads (`DirectTransactionReader`), standalone
-  Station-free caller proofs, and migration of the private Station runner onto
-  that shared API.
-- [Server delivery ownership](transit-server-delivery-implementation.md) and
-  [server Station service ownership](transit-server-station-implementation.md)
-  ([PR #460](https://github.com/spoke-sh/transit/pull/460)): `transit-delivery`
-  and `transit-station-controller` are removed from builds and releases, and
-  `transit server` supervises courier and declared Station observer/lifecycle
-  services.
-- [Standalone `transit-node` retirement](transit-node-retirement-implementation.md)
-  ([PR #463](https://github.com/spoke-sh/transit/pull/463)),
-  [1 MiB streaming SQL framing](https://github.com/spoke-sh/transit/pull/461),
-  and [Ursula removal with MinIO S3 tiering](transit-storage-ursula-removal.md)
-  ([PR #467](https://github.com/spoke-sh/transit/pull/467)): production runtime
-  hosting is consolidated in `transit server`, and Ursula is removed in favor of
-  native local storage and optional S3 immutable staging.
-- [Milestone 13 declarative serving](13-declarative-serving-and-reactive-dataflows.md)
-  ([PR #464](https://github.com/spoke-sh/transit/pull/464),
-  [cutover inventory](declarative-serving-cutover.md)) and `transit-http`
-  transport extraction: generic HTTP/SSE/WebSocket serving, reactive
-  subscriptions, `transit-station-app` screen/theme retirement and Board server
-  consolidation belong to M13 rather than M6's actor-runtime replacement.
+- Units A/B landed in PR #471: the 12-profile log baseline, actor/DLQ/GC
+  pressure schedule, shared batching and claim-read release. Their
+  [recorded performance](../history/qualification/performance.md#batched-transactional-station-comparison-and-12-profile-streamqueue-baseline--2026-11-18)
+  remains tied to its original source and workload.
+- Units C/D landed in PR #475 (`1fab91d7c`): authenticated origin,
+  transactional calls/replies, Timer Queue observation, Registry/Supervisor and
+  server service hosting. The [slice plan](station-calls-services-implementation.md)
+  records implementation; retain its installed fault/performance acceptance
+  obligations and H's final integration gates. These APIs remain internal.
+- The [connector and captured-query implementation plan](station-consumer-migration-implementation.md)
+  decomposes E into six review units. It identifies the missing effect-admission
+  link, capture ownership and retained-query migration before adapter work.
+  Its first implementation checkpoint is a real transactional HTTP journey.
 
-This update supersedes the November 12 schedule and estimates while preserving
-Milestone 6's `R0`–`R10` acceptance criteria, Batch 5/8/9 obligations and
-source-attributed evidence. Milestone 6 remains **In Progress**.
+This refresh supersedes earlier next-step sequencing and remaining estimates.
+It preserves M6's R0–R10 acceptance criteria, source-attributed evidence and
+M7's direct Document prerequisite. Milestone 6 remains **In Progress**.
 
 ## How much work remains
 
-With **Units A and B** merged in [PR #471](https://github.com/spoke-sh/transit/pull/471)
-(`70dc36d57`, cutting private
-transactional Station turn latency from `12,015.7 ms` median / `19,272.0 ms` p95
-to `6,018.2 ms` / `8,355.6 ms` and completing all 12 `log-runtime-baseline`
-profiles plus actor/DLQ/GC pressure checks), plan for **11–15 remaining review
-units** and **12–21.5 engineer-weeks of direct work** (**roughly 15–27
-engineer-weeks** allowing ~25% for integration, fault-schedule debugging and
-performance tuning), down from the initial 13–18 review units / 14.5–25.5 direct
-engineer-weeks at `c1f2680d9` (and 15–21 / 19–32 on November 12). The next
-Track 1 implementation slice—[transactional calls, timers, names and supervision](station-calls-services-implementation.md)
-(**Units C and D**, `3–4` review units)—is drafted at `f31673bbd`. These are engineering planning
-ranges, not measured velocity, and they **exclude** implementing
-[Milestone 7](07-document-storage-and-station-decoupling.md)'s
-`DocumentPartition` (`C4`/`C5`/`C7`) itself.
+Use **12–14 review units**: E's six units, F's provisional 3–4, G's 2–3 and
+H's one integration unit. These are review boundaries, not elapsed-time
+commitments. Re-estimate effort after E1 settles authenticated effect admission;
+the previous E estimate of 2–3 units and combined engineer-week totals are not
+current estimates. Implementation of M7 itself is outside this count.
 
-Remaining work splits into **two local tracks that can run in parallel**, plus
-one external prerequisite before legacy `Station` persistence can be deleted:
+1. **Track 1: E → F.** Deliver original effect admission, transactional capture,
+   installed HTTP, the remaining effect consumers, captured queries and server
+   activation. Then cut over public bindings, all 11 SDKs, real examples and
+   Board inspection with M7's Document consumers, deleting legacy Station
+   persistence and the last native delivery dependencies together.
+2. **Track 2: G.** Prove account-wide token routing, combine eligible Table DML
+   token/mutation/outcome in one authoritative WAL commit, implement `TRUNCATE`,
+   and qualify the inherited 19 ms INSERT and 10–20 ms warm SELECT targets with
+   unchanged synchronous durability. This track has no Station dependency.
+3. **Closeout: H.** Qualify one committed revision across all lanes, required
+   deployments, object-tier recovery and isolated performance campaigns. Earlier
+   passes cannot be combined into a current-revision milestone pass.
 
-1. **Track 1 — Transactional `Station` completion and consumer cutover (Units C → D → E → F remaining after delivered A & B, 8–11 review units, 8–14.5 engineer-weeks):**
-   With the 12-profile log/GC/actor-population baselines (`A`) and shared
-   multi-statement batching, claim `release` closure and ~2× turn-cost reduction
-   (`B`) in place, add durable calls/replies (`C`) and timers/names/supervision (`D`) over
-   declared data, migrate HTTP/gRPC/Flight connectors and retire native outbox
-   courier polling (`E`), and cut over public Station bindings, all 11 SDKs,
-   examples and Board inspection while deleting legacy `GenServer`/`Turn`
-   persistence (`F`).
-2. **Track 2 — Table commit composition, `TRUNCATE` and SQL latency (Unit G, 2–3 review units, 2.5–4.5 engineer-weeks):**
-   Collapse single-partition SQL DML autocommit from three WAL transitions
-   (`DirectClientToken.bind` → `commit_saved` → `DirectClientToken.update`) to
-   one authoritative partition commit with reconstructible secondary catalog
-   bookkeeping, implement executable `TRUNCATE TABLE`, and meet the inherited
-   `19 ms` `INSERT` and `10–20 ms` warm `SELECT` targets alongside
-   [Milestone 8](08-gateway-architecture-and-protocol-ingress.md). Track 2 has
-   zero Station dependency and can run immediately alongside Track 1.
-3. **Final common-revision qualification (Unit H, 1 review unit, 1.5–2.5 engineer-weeks):**
-   Freeze one `HEAD` revision and `Growth.current_definition`, pass all 13 clean
-   lanes plus external Compose/Substrate/MinIO profiles and isolated baselines,
-   promote public docs, and mark M6 `Completed`.
-
-The review should settle five choices before implementation continues:
-
-1. **Fix shared-path turn cost (`Unit B`) before adding Batch 6–7 services:**
-   Coalesce multi-statement staging/execution and eliminate per-statement
-   control-KV write-and-readback round-trips before building calls, timers and
-   connectors on top of the runner.
-2. **Keep `transit server` as the sole service host:** Reuse `#460`'s
-   server-owned Station service registration (`station.file` and local
-   application manifests) and `#465`'s Station-free `transit-http` transport
-   while moving `Waiting`, `Registry`, `Supervisor`, connector state and
-   `transit-query-host` courier delivery onto declared Queues/Tables/KV. Add no
-   new standalone controller or courier executable.
-3. **Keep generic API serving and UI-compiler retirement in Milestone 13:**
-   M6 migrates `Station` calls/replies, behaviors, connectors and SDK worker
-   bindings; M13 owns `/serving/v1`, `/reactive/v1`, `/published/*`,
-   `transit-station-app` UI declarations and Board's shared-server hosting.
-4. **Gate final `GenServer`/`Turn` deletion (`Unit F`) on M7 `C4`/`C5`/`C7`, without blocking `B`–`E`:**
-   Deliver and qualify `B`–`E` and stage non-Document SDK/example migrations
-   immediately, while holding public cutover and deletion of `GenServer`/`Turn`
-   until `DocumentPartition` participates in common decisions so Transit never
-   ships two parallel supported writable Station engines.
-5. **Hold the inherited Table latency targets firm in Track 2 (`Unit G`):**
-   Do not waive or dilute the matched `19 ms` `INSERT` and `10–20 ms` warm
-   `SELECT` objectives or treat `console-latency-gate` smoke ceilings as closing
-   them; coordinate single-WAL token commitment with M8's cohosted SQL path.
+Keep `transit server` as the service host and generic API publication/UI work in
+M13. E's migrated compositions must work without native courier delivery, but
+**global courier removal waits for F/M7's last native consumer**. M7 and F share
+an integration gate; neither must finish deletion before the other can develop.
 
 ## Delivered basis and remaining closeout obligations
+
+The following audit describes `c1f2680d9` on 2026-11-18. A–D completion and
+the current remaining sequence are reconciled above; references to pending A–D
+work in this historical basis are not new implementation tasks.
 
 Current public behavior is owned by [Streams](../handbook/reference/streams.md),
 [SQL streaming](../handbook/reference/sql/streaming.md),
@@ -167,6 +113,9 @@ recover and finalize without invoking application callbacks or a Station runner.
 
 ## Diagnosed turn cost and shared-path optimization target
 
+This is the pre-Unit-B diagnosis. Unit B has landed; retain the measurements
+as historical controls and measure the replacement path before further tuning.
+
 The [November 12 comparison](../history/qualification/performance.md#private-transactional-station-comparison--2026-11-12)
 at `b24c048d2` measured **12,015.7 ms median / 19,272.0 ms p95** (27,836 client
 allocations, 18.39 MiB peak budget usage, growing from **5.84 s** median on the
@@ -206,22 +155,20 @@ before building `C`–`F`.
 
 ## Review units and effort estimate
 
-Estimates assume one experienced engineer per active track using the existing
-Nix/Just harness, synchronous local disk durability, no automatic binary
-conversion of pre-cutover installations, and reuse of delivered storage and
-catalog owners.
+Review units describe the current decomposition. Effort estimates remain open
+until E1 establishes the effect-admission contract and its implementation cost.
 
-| Unit | Track | Deliverable | Review units | Engineer-weeks | Status / Entry gate |
-| --- | --- | --- | ---: | ---: | --- |
-| **A** | 1 | Complete 12-profile log baselines, actor/DLQ/GC pressure proof and frozen removal matrix | — | — | **Delivered (`8dc5df3e1`)** ([evidence](../history/qualification/performance.md#batched-transactional-station-comparison-and-12-profile-streamqueue-baseline--2026-11-18)) |
-| **B** | 1 | Shared multi-statement batching (`stage_batch`/`batch`), claim `release` closure and ~2× turn-cost reduction (`B.3`–`B.4`) | — | — | **Delivered (`8dc5df3e1`)** ([transactions](../history/qualification/transactions.md#shared-multi-statement-batching-and-claim-read-closure--2026-11-18)) |
-| **C** | 1 | Authenticated durable calls, actor-origin correlation and reply waits (`Batch 6a`) | — | — | **Delivered** ([plan](station-calls-services-implementation.md)) |
-| **D** | 1 | Durable timers, conditional `Registry` names and `Supervisor` state over server-owned services (`Batch 6b`) | — | — | **Delivered** ([plan](station-calls-services-implementation.md)) |
-| **E** | 1 | Connector (`HTTP`/`gRPC`/`Flight`/`Exchange`) migration, retained Query consumers and courier retirement (`Batch 7a`) | 2–3 | 2.5–4 | Unblocked (`C` and `D` delivered) |
-| **F** | 1 | Public `Station`/ABI/11-SDK/example/Board cutover and legacy `GenServer`/`Turn` deletion (`Batch 7b`) | 3–4 | 3.5–5.5 | `E` + **M7 `C4`/`C5`/`C7`** |
-| **G** | 2 (parallel) | Account-wide single-WAL Table token/commit composition, `TRUNCATE TABLE` and `19 ms` / `10–20 ms` latency (`Batch 8 / R9`) | 2–3 | 2.5–4.5 | Independent (coordinate with M8) |
-| **H** | Closeout | Single-revision full-lane, deployment/MinIO and baseline qualification + handbook promotion (`Batch 9 / R10`) | 1 | 1.5–2.5 | `F` and `G` complete |
-| **Total** | | **Remaining direct work (`E`–`H`) before ~25% contingency** | **8–11** | **8–16.5** | **~10–21 EW with contingency** |
+| Unit | Track | Deliverable | Review units remaining | Status or entry gate |
+| --- | --- | --- | ---: | --- |
+| **A** | 1 | Log baselines and actor/DLQ/GC pressure | 0 | Delivered in #471; retain source-specific evidence |
+| **B** | 1 | Shared batching, claim-read release and turn-cost reduction | 0 | Delivered in #471 |
+| **C** | 1 | Authenticated transactional calls and replies | 0 | Implemented in #475; internal API |
+| **D** | 1 | Timer Queue, Registry, Supervisor and server services | 0 | Implemented in #475; carry installed acceptance gates into integration |
+| **E** | 1 | Original effect admission, capture, connectors, retained queries and activation | 6 | [Detailed next slice](station-consumer-migration-implementation.md); A–D foundation available |
+| **F** | 1 | Public ABI/11-SDK/example/Board cutover and legacy deletion | 3–4 | E plus joint M7 C4/C5/C7 integration |
+| **G** | 2 | Single-WAL Table commit, TRUNCATE and SQL latency | 2–3 | Independent; coordinate with M8 |
+| **H** | Closeout | One-revision full qualification and public documentation | 1 | F and G complete |
+| **Total** | | Remaining M6 review scope, excluding M7 implementation | **12–14** | Re-estimate effort after E1 |
 
 ---
 
@@ -378,6 +325,14 @@ runtime-controller replacement preserve exact identities and retry counts;
 measured idle CPU/requests and first-work wakeup latency stay bounded.
 
 ## E Migrate connectors, retained Query consumers and courier polling
+
+The [2026-11-21 implementation plan](station-consumer-migration-implementation.md)
+is the execution owner for E. Its six units put authenticated original effect
+admission and transactional capture before adapters. The current native courier
+already uses pending-index notifications and bounded waits. Remove native
+courier dependence from migrated compositions here; remove the global legacy
+service only with F/M7's final consumer cutover. The scope below is retained,
+with those contract and sequencing refinements.
 
 Replace legacy `Station` effect turns and native outbox courier polling while
 preserving every [connector guarantee](../handbook/reference/connectors.md):
@@ -543,7 +498,8 @@ flowchart LR
   A["A: Log baselines & actor/GC pressure"] --> B["B: Shared batching, claim release & turn cost"]
   B --> C["C: Authenticated calls & replies"]
   B --> D["D: Timers, Registry & Supervisor"]
-  B --> E["E: Connectors, Query & courier removal"]
+  C --> E["E: Effect admission, capture, connectors & Query"]
+  D --> E
   C --> F["F: Public SDK/example/Board cutover & Turn deletion"]
   D --> F
   E --> F
@@ -555,17 +511,16 @@ flowchart LR
 ```
 
 Solid arrows show M6's internal ordering; dashed arrows show external milestone
-boundaries. **Recommended immediate execution order:** with **Units A and B**
-merged in `#471`, execute **Units C and D**
-([calls and services slice plan](station-calls-services-implementation.md)) on
-Track 1 while running **Unit G (`G.1`–`G.2`)** in parallel on Track 2, then
-follow with **Unit E** and **Unit F**.
+boundaries. **Recommended immediate execution order:** with A–D implemented,
+execute E1–E3's original effect/capture/HTTP checkpoint, then E4–E6. Run G's
+contract and Table implementation work independently when capacity permits.
+Integrate F with M7 before H's final qualification.
 
 ### Key decisions for review
 
 | Decision | Recommendation | Consequence if changed |
 | --- | --- | --- |
-| Immediate Track 1 priority | Complete `A` + `B.3`–`B.4` before starting `C`–`E` | Building calls, timers and connectors before fixing the 17-KV-write/turn amplification risks baking multi-second latency into new service schemas |
+| Immediate Track 1 priority | E1 original effect admission, then E2 capture and E3 installed HTTP | A Queue payload or execution-origin tuple cannot replace native effect authority; settle that boundary before migrating transports |
 | Service hosting boundary | Reuse `transit server`'s `#460` Station service supervisor and `#465` `transit-http` | Avoids inventing new controller/courier daemons while keeping kernel/SQL packages free of `Station` |
 | Serving & Board scope | Keep `/serving/v1`, `/reactive/v1`, `transit-station-app` UI retirement and Board hosting in M13 | M6 updates Board's read-only Station/Queue/effect metadata projections without blocking on M13's full frontend cutover |
 | M7 Document dependency | Stage non-Document `F` migrations early; hold final `GenServer`/`Turn` deletion for M7 `C4`/`C5`/`C7` | Preserves the single-writable-engine rule; closing M6 earlier would require an explicit roadmap split moving `transit-station-document` consumer cutover solely to M7 |
