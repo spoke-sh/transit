@@ -1787,8 +1787,7 @@ fn transactionDispatch(service: *@import("LocalTableService.zig"), owner_role: u
     const begun = try dispatch(service, .{ .transaction = .{ .begin = begin } });
     defer begun.deinit();
     try t.expect(begun.value.result.transaction.begun.binding.intent.transaction.begin.objects.count >= 12);
-    (try dispatch(service, .{ .transaction = .{ .acquire = token } })).deinit();
-    const acquired = try dispatch(service, .{ .transaction = .{ .inspect = token } });
+    const acquired = try dispatch(service, .{ .transaction = .{ .acquire = token } });
     defer acquired.deinit();
     try t.expect(acquired.value.result.transaction.acquired.cut.sources.count >= 12);
     var authorization = try service.engine.authorization();
