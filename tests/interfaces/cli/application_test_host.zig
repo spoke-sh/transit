@@ -132,6 +132,89 @@ const WorkflowAuthority = struct {
         const owner = try context.authority.authorize(.{ .create_role = .{ .name = try .init("workflow_owner") } });
         _ = try context.authority.authorize(.{ .transfer_object = .{ .object = object, .owner = owner } });
         _ = try context.authority.authorize(.{ .grant = .{ .object = object, .grantee = context.role, .privileges = g.catalog.KVAuthority.inspect | g.catalog.KVAuthority.read } });
+        var observation = case;
+        observation.actions = observation.actions[observation.actions.len - 1 ..];
+        try require((try runner.run(observation)).passed);
+        _ = try context.authority.authorize(.{ .revoke_privileges = .{ .object = object, .grantee = context.role, .privileges = g.catalog.KVAuthority.read } });
+        if (runner.run(observation)) |_| return error.RevokedWorkflowPassed else |err| try denied(context.session, err);
+        _ = try context.authority.authorize(.{ .transfer_object = .{ .object = object, .owner = context.role } });
+        const input = try context.session.table.call(.{ .log_lookup = .{ .namespace = 1, .name = "input" } });
+        const dependency = g.catalog.TableAuthority.reference(input.value.result.log_lookup.?.declaration.properties.authorization);
+        input.deinit();
+        _ = try context.authority.authorize(.{ .transfer_object = .{ .object = dependency, .owner = owner } });
+        _ = try context.authority.authorize(.{ .grant = .{ .object = dependency, .grantee = context.role, .privileges = g.catalog.LogAuthority.inspect } });
+        try require((try runner.run(observation)).passed);
+        _ = try context.authority.authorize(.{ .revoke_privileges = .{ .object = dependency, .grantee = context.role, .privileges = g.catalog.LogAuthority.inspect } });
+        if (runner.run(observation)) |_| return error.RevokedWorkflowDependencyPassed else |err| try denied(context.session, err);
+        _ = try context.authority.authorize(.{ .transfer_object = .{ .object = dependency, .owner = context.role } });
+        return true;
+    }
+};
+const QueueAuthority = struct {
+    fn run(_: *anyopaque, context: host.Context) !bool {
+        const session = context.session;
+        _ = try write(session, "CREATE QUEUE requests (id BIGINT NOT NULL)");
+        const lookup = try session.table.call(.{ .log_lookup = .{ .namespace = 1, .name = "requests" } });
+        const object = g.catalog.TableAuthority.reference(lookup.value.result.log_lookup.?.declaration.properties.authorization);
+        lookup.deinit();
+        const owner = try context.authority.authorize(.{ .create_role = .{ .name = try .init("queue_owner") } });
+        _ = try context.authority.authorize(.{ .transfer_object = .{ .object = object, .owner = owner } });
+        const privileges = g.catalog.LogAuthority.inspect | g.catalog.LogAuthority.append;
+        _ = try context.authority.authorize(.{ .grant = .{ .object = object, .grantee = context.role, .privileges = privileges } });
+        try session.begin();
+        defer session.end();
+        const prepared = try session.prepare("ENQUEUE INTO requests VALUES (7)");
+        defer session.destroy(prepared);
+        // SQL preparation precedes revocation and grants no authority lease:
+        // submitting the prepared append must still fail.
+        _ = try context.authority.authorize(.{ .revoke_privileges = .{ .object = object, .grantee = context.role, .privileges = g.catalog.LogAuthority.append } });
+        if (session.write(prepared, &.{})) |_| return error.RevokedQueueAppendPassed else |err| try denied(session, err);
+        _ = try context.authority.authorize(.{ .transfer_object = .{ .object = object, .owner = context.role } });
+        return true;
+    }
+};
+const Fault = struct {
+    mode: enum { dropped, duplicate, reordered, terminal, timeout, memory },
+    endpoint: g.wire.LocalEndpoint = undefined,
+    injected: bool = false,
+    fn invoke(raw: *anyopaque, invocation: *g.wire.LocalEndpoint.Invocation) !void {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        if (self.mode == .timeout and invocation.isRequest(w.Request)) {
+            const request = try invocation.requestPtr(w.Request);
+            if (request.action == .commit_saved) {
+                self.injected = true;
+                return error.AuthorityTimeout;
+            }
+        }
+        try self.endpoint.invoke(self.endpoint.context, invocation);
+        if (!invocation.isRequest(w.Request) or self.injected) return;
+        const response: *w.Response = @ptrCast(@alignCast(invocation.output));
+        if (response.result != .page or response.result.page.rows.len < 2) return;
+        const page = &response.result.page;
+        self.injected = true;
+        switch (self.mode) {
+            .dropped => return error.TestLostRead,
+            .terminal => page.next = null,
+            .duplicate, .reordered => {
+                const rows = try invocation.allocator.dupe(w.Binary, page.rows);
+                if (self.mode == .duplicate) rows[1] = rows[0] else std.mem.swap(w.Binary, &rows[0], &rows[1]);
+                page.rows = rows;
+            },
+            else => unreachable,
+        }
+    }
+    fn run(raw: *anyopaque, context: host.Context) !bool {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        if (self.mode == .memory) {
+            const bytes = try context.session.allocator.alloc(u8, 256 * 1024 * 1024);
+            defer context.session.allocator.free(bytes);
+            return error.MemoryCapNotEnforced;
+        }
+        _ = try write(context.session, "CREATE TABLE items(id BIGINT PRIMARY KEY)");
+        _ = try write(context.session, "INSERT INTO items VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9)");
+        self.endpoint = context.endpoint;
+        context.session.wire.local = .{ .context = self, .invoke = invoke };
+        defer context.session.wire.local = context.endpoint;
         const case: contract.Wire.Executable = .{
             .steps = &.{.{ .sql = if (self.mode == .timeout) "INSERT INTO items VALUES (1)" else "SELECT * FROM items" }},
             .actions = &.{.{ .step = 0, .expectation = if (self.mode == .timeout) .{ .refusal = .duplicate_key } else .complete, .location = location }},
