@@ -108,14 +108,45 @@ pub fn get(output: *std.heap.ArenaAllocator, client: c.DirectTableClient, expect
 /// this call fails. Row scratch is distinct from the retained environment and
 /// output; neither a budget limit nor a second matching row produces a value.
 pub const SelectLimits = struct { requests: u64, scan_rows: u64, result_bytes: u64 };
+/// Logical MANY reads share these counters for the entire invocation, including
+/// failure handling. Saved candidates freeze both their values and their usage.
+pub const SelectUsage = struct {
+    requests: u64 = 0,
+    scan_rows: u64 = 0,
+    result_bytes: u64 = 0,
+    pub fn validate(self: SelectUsage, limits: SelectLimits) !void {
+        if (self.requests > limits.requests or self.scan_rows > limits.scan_rows or self.result_bytes > limits.result_bytes) return error.QueryResultBudget;
+    }
+    pub fn follows(self: SelectUsage, previous: SelectUsage) bool {
+        return self.requests >= previous.requests and self.scan_rows >= previous.scan_rows and self.result_bytes >= previous.result_bytes;
+    }
+};
 pub fn select(output: std.mem.Allocator, scratch: *std.heap.ArenaAllocator, driver: *a.Step, client: c.DirectTableClient, expected: c.DirectTableProtocol.Definition, snapshot: c.DirectTableProtocol.Snapshot, query: a.Select, limits: SelectLimits) !Value {
+    return selectObserved(output, scratch, driver, client, expected, snapshot, query, limits, null);
+}
+pub fn selectObserved(output: std.mem.Allocator, scratch: *std.heap.ArenaAllocator, driver: *a.Step, client: c.DirectTableClient, expected: c.DirectTableProtocol.Definition, snapshot: c.DirectTableProtocol.Snapshot, query: a.Select, limits: SelectLimits, cumulative: ?*SelectUsage) !Value {
     if (limits.requests < 4 or limits.scan_rows == 0 or limits.result_bytes == 0) return error.InvalidQueryBudget;
+    var local: SelectUsage = .{};
+    const usage = if (query.many != null) cumulative orelse &local else &local;
+    try usage.validate(limits);
+    const request_limit = limits.requests - usage.requests;
+    if (request_limit < 4) return error.QueryPageBudget;
     if (!std.mem.eql(u8, query.target, expected.name.slice())) return error.TableDefinitionChanged;
-    var scan = try @import("DirectTableScan.zig").open(client.allocator, client, snapshot, limits.requests, null);
+    // Opening also consumes a credential exchange and a native request. Charge
+    // it on failure; a completed scan publishes its full charged request count.
+    usage.requests += 2;
+    var scan = try @import("DirectTableScan.zig").open(client.allocator, client, snapshot, request_limit, null);
     defer scan.deinit();
+    defer usage.requests += scan.requests - 2;
     if (!std.meta.eql(expected.interpretation, scan.reader.basis.interpretation)) return error.TableDefinitionChanged;
     const schema = scan.reader.schema.schema;
     if (schema.columns.len > a.max_arguments) return error.ProgramTooComplex;
+    if (query.many) |many| {
+        if (many.bound == 0 or many.bound > a.max_collection_rows or expected.document != null or client.transaction == null or schema.primary_key.len != 1) return error.InvalidProgramCollection;
+        const key = schema.columns[try schema.index(schema.primary_key[0])];
+        if (key.type != .int64 or key.nullable or !std.mem.eql(u8, key.name, many.order)) return error.InvalidProgramCollection;
+        if (scan.reader.basis.workspace == null or scan.reader.basis.workspace.?.cut.begin.mode != .serializable) return error.InvalidTransactionGuard;
+    }
     const original_native = driver.native;
     const original_scratch = driver.scratch;
     defer {
@@ -125,33 +156,75 @@ pub fn select(output: std.mem.Allocator, scratch: *std.heap.ArenaAllocator, driv
     var context: RowContext = .{ .parent = original_native, .row = &.{} };
     driver.native = .{ .context = &context, .lookup = RowContext.lookup, .evaluate = RowContext.evaluate, .condition = RowContext.condition };
     var result: Value = .null;
-    var scanned: u64 = 0;
+    var collection: ManyRows = .{};
+    if (query.many != null) try collection.charge(usage, limits.result_bytes, ManyRows.overhead);
     while (try scan.nextBorrowed()) |cells| {
-        if (scanned == limits.scan_rows) return error.QueryResultBudget;
-        scanned += 1;
+        if (usage.scan_rows == limits.scan_rows) return error.QueryResultBudget;
+        usage.scan_rows += 1;
         _ = scratch.reset(.retain_capacity);
         driver.scratch = scratch.allocator();
         const row = try rowValue(scratch.allocator(), schema, cells, null, null);
         context.row = row.record;
         const evaluation = driver.evaluator();
         if (query.predicate) |predicate| if (!try evaluation.condition(try evaluation.evaluate(predicate))) continue;
-        if (result != .null) return error.ProgramCardinalityMismatch;
+        if (query.many) |many| {
+            if (collection.len == many.bound) return error.ProgramCardinalityMismatch;
+        } else if (result != .null) return error.ProgramCardinalityMismatch;
         const revision = if (expected.document) |policy|
             try (try documentRevision(scan.reader.basis, policy)).stateFingerprint()
         else
             try scan.reader.basis.fingerprint();
-        // Bound the actual selected representation before retaining it. The
-        // public encoding contains only ordinary data and observation evidence.
         const selected = try rowValue(scratch.allocator(), schema, cells, query.columns, &revision);
-        _ = p.Json.valueAllocBounded(scratch.allocator(), selected, @intCast(@min(limits.result_bytes, a.Codec.max_bytes))) catch |err| switch (err) {
+        const available = limits.result_bytes - usage.result_bytes;
+        const encoded = p.Json.valueAllocBounded(scratch.allocator(), selected, @intCast(@min(available, a.Codec.max_bytes))) catch |err| switch (err) {
             error.WriteFailed => return error.QueryResultBudget,
             else => return err,
         };
-        result = try rowValue(output, schema, cells, query.columns, &revision);
+        if (query.many) |many| {
+            // Account for both the wire and the in-memory descriptor/payload
+            // representation before retaining this row in the output owner.
+            const amount = @max(encoded.len + 1, try ManyRows.ownedBytes(selected));
+            try collection.charge(usage, limits.result_bytes, amount);
+            collection.items[collection.len] = .{ .key = (try row.field(many.order)).integer, .row = try rowValue(output, schema, cells, query.columns, &revision) };
+            collection.len += 1;
+        } else result = try rowValue(output, schema, cells, query.columns, &revision);
     }
     try scan.validateCurrent();
-    return result;
+    return if (query.many != null) try collection.finish(output) else result;
 }
+const ManyRows = struct {
+    const Entry = struct { key: i64, row: Value };
+    // This is the explicit transient result cap, never a durable Table limit.
+    items: [a.max_collection_rows]Entry = undefined,
+    len: usize = 0,
+    const overhead = @max(@sizeOf(Value), "{\"rows\":[]}".len);
+    fn charge(_: *ManyRows, usage: *SelectUsage, maximum: u64, amount: usize) !void {
+        if (usage.result_bytes > maximum or amount > maximum - usage.result_bytes) return error.QueryResultBudget;
+        usage.result_bytes += amount;
+    }
+    fn ownedBytes(value: Value) anyerror!usize {
+        var total: usize = @sizeOf(Value);
+        switch (value) {
+            .record => |fields| for (fields) |field| {
+                total = try std.math.add(usize, total, @sizeOf(a.Values.Field) + field.name.len);
+                total = try std.math.add(usize, total, try ownedBytes(field.value));
+            },
+            .text, .binary, .json => |bytes| total = try std.math.add(usize, total, bytes.len),
+            else => {},
+        }
+        return total;
+    }
+    fn ascending(_: void, left: Entry, right: Entry) bool {
+        return left.key < right.key;
+    }
+    fn finish(self: *ManyRows, output: std.mem.Allocator) !Value {
+        std.mem.sort(Entry, self.items[0..self.len], {}, ascending);
+        const values = try output.alloc(Value, self.len);
+        for (self.items[0..self.len], values) |entry, *value| value.* = entry.row;
+        return .{ .rows = values };
+    }
+};
+
 fn documentRevision(basis: c.DirectTableReader.Basis, policy: c.DirectDocument.Policy) !c.DirectDocument.Revision {
     const guard: p.Transaction.StateGuard = if (basis.workspace) |view| blk: {
         if (view.cut.begin.mode != .serializable) return error.InvalidTransactionGuard;
@@ -478,4 +551,31 @@ test "application native append freezes schema values and original log identity"
     try t.expectEqualStrings("accepted", row.cells[1].value.atom.bytes);
     try t.expect(try rows.next() == null);
     try t.expectError(error.ProgramResourceKindMismatch, prepareAppend(arena.allocator(), connection, metadata, 43, .{ .kind = .queue, .target = "events", .values = &.{} }));
+}
+
+test "application many accounting is cumulative and bounded ordering preserves duplicate payloads" {
+    const t = std.testing;
+    var collection: ManyRows = .{};
+    var usage: SelectUsage = .{};
+    try collection.charge(&usage, 20, 11);
+    try t.expectError(error.QueryResultBudget, collection.charge(&usage, 20, 10));
+    try t.expectEqual(@as(u64, 11), usage.result_bytes);
+    try collection.charge(&usage, 20, 9);
+    try t.expectError(error.QueryResultBudget, collection.charge(&usage, 20, 1));
+    try t.expect(!(@as(SelectUsage, .{ .result_bytes = 19 })).follows(usage));
+    const row: Value = .{ .record = &.{.{ .name = "note", .value = .null }} };
+    try t.expect(try ManyRows.ownedBytes(row) > @sizeOf(Value));
+    collection.items[0] = .{ .key = 3, .row = row };
+    collection.items[1] = .{ .key = -2, .row = .{ .record = &.{.{ .name = "note", .value = .{ .text = "first" } }} } };
+    collection.items[2] = .{ .key = 1, .row = row };
+    collection.len = 3;
+    const result = try collection.finish(t.allocator);
+    defer t.allocator.free(result.rows);
+    try t.expectEqualSlices(i64, &.{ -2, 1, 3 }, &.{ collection.items[0].key, collection.items[1].key, collection.items[2].key });
+    try t.expectEqualStrings("first", (try result.rows[0].field("note")).text);
+    try t.expectEqualDeep(result.rows[1], result.rows[2]);
+    collection.len = 0;
+    const empty = try collection.finish(t.allocator);
+    defer t.allocator.free(empty.rows);
+    try t.expectEqual(@as(usize, 0), empty.rows.len);
 }

@@ -1123,6 +1123,7 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.UnsupportedProgramMigration => .{ "0A000".*, "Queue DATAFLOW migration binding is not supported" },
         error.UnsupportedProgramRevision => .{ "0A000".*, "Queue DATAFLOW checkpoints are not finite Table revisions" },
         error.InvalidDataflowTransition => .{ "55000".*, "DATAFLOW control conflicts with its lifecycle or executor selection" },
+        error.InvalidProgramCollection, error.UnsupportedProgramIteration => .{ "0A000".*, "DATAFLOW requires a bounded atomic collection with ascending BIGINT key order and no nested reads or loops" },
         error.ProgramTypeMismatch, error.ProgramNullabilityMismatch, error.ProgramArgumentMismatch, error.ProgramResourceKindMismatch => .{ "42804".*, "DATAFLOW operands do not match their bound native types" },
         error.ProgramTooComplex, error.ProgramTooDeep => .{ "54000".*, "DATAFLOW exceeds its bounded syntax or dependency budget" },
         error.SourceSchemaMismatch => .{ "42804".*, "SOURCE destination requires the exact seven-column non-null capture envelope" },

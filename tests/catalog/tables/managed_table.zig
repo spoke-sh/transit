@@ -1825,7 +1825,13 @@ fn applicationExecution(client: c.DirectTableClient, published: q.ManagedApplica
     _ = try c.DirectLogClient.apply(&output, client, .{ .operation = .{ .binding = request.binding, .command = .execute, .steps = 16 } });
     const stream_metadata = try client.call(.{ .log_lookup = .{ .namespace = 1, .name = "application_events" } });
     defer stream_metadata.deinit();
-    const resources = [_]q.ApplicationBinding{ published.resources[0], .table(table.value.result.lookup.?), .kv(kv_metadata.value.result.kv_lookup.?), .{ .value = .{ .log = stream_metadata.value.result.log_lookup.? } }, policy_binding };
+    // Deliberately shuffled insertion order. Native MANY must finish its read
+    // and restore three ordered iterator positions under the same transaction.
+    try ddl(client, "CREATE TABLE application_batch (id BIGINT PRIMARY KEY)", 733018, 733019);
+    try dml(client, "INSERT INTO application_batch VALUES (3), (1), (2)", 733021);
+    const batch_metadata = try client.call(.{ .lookup = .{ .namespace = 1, .name = "application_batch" } });
+    defer batch_metadata.deinit();
+    const resources = [_]q.ApplicationBinding{ published.resources[0], .table(table.value.result.lookup.?), .kv(kv_metadata.value.result.kv_lookup.?), .{ .value = .{ .log = stream_metadata.value.result.log_lookup.? } }, policy_binding, .table(batch_metadata.value.result.lookup.?) };
     const declared = try q.ApplicationDeclaration.prepare(client.allocator, .{
         .connection = client.connection,
         .namespace = 1,
@@ -1838,11 +1844,20 @@ fn applicationExecution(client: c.DirectTableClient, published: q.ManagedApplica
         \\  BEGIN ATOMIC
         \\    REQUIRE CURRENT_REVISION(application_policy, 1) = policy._revision
         \\      AND CURRENT_REVISION(application_policy, 999) IS NULL ELSE 'PolicyChanged';
-        \\    PUT INTO application_state KEY key VALUE ROW(event.id) IF ABSENT;
-        \\    INSERT INTO application_rows VALUES (event.id) ON CONFLICT (id) DO ASSERT SAME ROW;
-        \\    PRODUCE INTO application_events VALUES (event.id);
-        \\    LET observed_at = NOW();
-        \\    REQUIRE event.id = 7 ELSE 'AbortBody';
+        \\    LET batch MANY(3) = SELECT id FROM application_batch ORDER BY id;
+        \\    FOR item IN batch DO
+        \\      IF item.id = 1 THEN
+        \\        PUT INTO application_state KEY key VALUE ROW(event.id) IF ABSENT;
+        \\        INSERT INTO application_rows VALUES (event.id) ON CONFLICT (id) DO ASSERT SAME ROW;
+        \\        PRODUCE INTO application_events VALUES (event.id);
+        \\      ELSE
+        \\        IF item.id = 2 THEN
+        \\          LET observed_at = NOW();
+        \\        ELSE
+        \\          REQUIRE event.id = 7 ELSE 'AbortBody';
+        \\        END IF;
+        \\      END IF;
+        \\    END FOR;
         \\  END;
         \\  LET observed = SELECT * FROM application_rows WHERE id = event.id;
         \\  REQUIRE observed.id = event.id ELSE 'MissingCommittedRow';

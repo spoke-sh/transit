@@ -142,6 +142,7 @@ fn block(self: *Self, body: []const a.Instruction) anyerror!void {
         },
         .require => |value| try self.expression(value.condition),
         .atomic => |nested| try self.block(nested),
+        .iteration => |loop| try self.block(loop.body),
         .conditional => |branch| {
             try self.expression(branch.condition);
             try self.block(branch.yes);

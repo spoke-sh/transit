@@ -177,6 +177,10 @@ pub fn resource(self: Self, output: std.mem.Allocator, connection: w.Connection)
     const keys = try output.alloc([]const u8, schema.primary_key.len);
     for (schema.primary_key, keys) |id, *key| key.* = try output.dupe(u8, schema.columns[try schema.index(id)].name);
     result.key = keys;
+    if (result.kind == .table and keys.len == 1) {
+        const key = schema.columns[try schema.index(schema.primary_key[0])];
+        if (key.type == .int64 and !key.nullable) result.many_order = keys[0];
+    }
     return result;
 }
 
