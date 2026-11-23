@@ -113,6 +113,33 @@ Every runtime branch is checked. A domain annotation does not prove that a sende
 is authorized or a referenced row exists; use a lookup and REQUIRE or `CHECK GUARD`
 for existence. Ordinary SQL still receives scalar columns and values.
 
+Native public Queue programs can process a bounded Table batch in one atomic
+transaction:
+
+```sql
+BEGIN ATOMIC
+  LET selected MANY(16) = SELECT id, note FROM items
+    WHERE batch = request.batch ORDER BY id;
+  FOR item IN selected DO
+    REQUIRE item.id > 0 ELSE 'InvalidItem';
+    PRODUCE INTO processed VALUES (item.id, item.note);
+  END FOR;
+END;
+```
+
+The Table must have a single non-null BIGINT primary key, and ORDER BY must name
+that key in ascending order. MANY accepts a literal bound from 1 through 64;
+the next matching row refuses the entire read with `ProgramCardinalityMismatch`.
+It never truncates. Empty results execute no body; a present NULL field remains
+NULL. Duplicate non-key payloads remain distinct rows. A later body refusal
+rolls back earlier outputs and mutations. Read before entering the loop: its
+body cannot contain more reads, nested loops, effects or response handoffs.
+These restrictions also apply to expanded helpers. The
+[ordered-program contract](../../../contracts/APPLICATION_PROGRAM_V1.md#bounded-many-row-reads-and-iteration)
+defines cumulative read budgets, the 12,288-step expanded work ceiling, retained
+continuations and exact failure order. Current authority and transaction
+validation still apply to every native operation and commit.
+
 This profile supports multi-schema `CREATE SCHEMA` and `BIND SCHEMA` specialization,
 schema-qualified `schema.object` DDL/DML/queries, `EXPORT REFERENCE TABLE`
 foreign-key-only exports, catalog-tracked `REFERENCES ... NOT ENFORCED` foreign

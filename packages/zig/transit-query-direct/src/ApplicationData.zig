@@ -579,3 +579,56 @@ test "application many accounting is cumulative and bounded ordering preserves d
     defer t.allocator.free(empty.rows);
     try t.expectEqual(@as(usize, 0), empty.rows.len);
 }
+
+test "application many refuses exhausted cumulative read budgets before another request" {
+    const t = std.testing;
+    const limits: SelectLimits = .{ .requests = 10, .scan_rows = 3, .result_bytes = 512 };
+    const exact: SelectUsage = .{ .requests = 10, .scan_rows = 3, .result_bytes = 512 };
+    try exact.validate(limits);
+    inline for (.{ "requests", "scan_rows", "result_bytes" }) |field| {
+        var excess = exact;
+        @field(excess, field) += 1;
+        try t.expectError(error.QueryResultBudget, excess.validate(limits));
+        var reset = exact;
+        @field(reset, field) -= 1;
+        try t.expect(!reset.follows(exact));
+    }
+    var scratch: std.heap.ArenaAllocator = .init(t.allocator);
+    defer scratch.deinit();
+    var driver: a.Step = undefined;
+    const query: a.Select = .{ .target = "items", .columns = &.{"id"}, .predicate = null, .many = .{ .bound = 3, .order = "id" } };
+    // No native client exists here: a second small read must reject before
+    // attempting I/O when the shared counter cannot fund its opening.
+    var consumed: SelectUsage = .{ .requests = 8 };
+    try t.expectError(error.QueryPageBudget, selectObserved(t.allocator, &scratch, &driver, undefined, undefined, undefined, query, limits, &consumed));
+    try t.expectEqual(@as(u64, 8), consumed.requests);
+    consumed = .{ .scan_rows = 4 };
+    try t.expectError(error.QueryResultBudget, selectObserved(t.allocator, &scratch, &driver, undefined, undefined, undefined, query, limits, &consumed));
+}
+
+test "application partial collection output releases every allocation on failure" {
+    const Case = struct {
+        fn run(allocator: std.mem.Allocator) !void {
+            var output: std.heap.ArenaAllocator = .init(allocator);
+            defer output.deinit();
+            const schema: f.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 3, .columns = &.{
+                .{ .id = 1, .name = "id", .type = .int64, .nullable = false },
+                .{ .id = 2, .name = "note", .type = .utf8, .nullable = true },
+            }, .primary_key = &.{1} };
+            var collection: ManyRows = .{};
+            var usage: SelectUsage = .{};
+            try collection.charge(&usage, 4096, ManyRows.overhead);
+            for ([_]i64{ 3, -1 }, 0..) |key, ordinal| {
+                const cells = try rowCells(output.allocator(), schema, &.{ .{ .integer = key }, .{ .text = "same" } });
+                const row = try rowValue(output.allocator(), schema, cells, &.{ "id", "note" }, null);
+                try collection.charge(&usage, 4096, try ManyRows.ownedBytes(row));
+                collection.items[ordinal] = .{ .key = key, .row = row };
+                collection.len += 1;
+            }
+            const result = try collection.finish(output.allocator());
+            try std.testing.expectEqual(@as(i64, -1), (try result.rows[0].field("id")).integer);
+        }
+    };
+    try Case.run(std.testing.allocator);
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, Case.run, .{});
+}

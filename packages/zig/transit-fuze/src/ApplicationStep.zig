@@ -236,3 +236,64 @@ test "application steps evaluate declared operands and keep common decisions exp
     try driver.finish(try driver.prepare(), .applied);
     try t.expect((try driver.prepare()).action == .complete);
 }
+
+test "bounded iteration preserves the first ordered refusal and skips an empty body" {
+    const t = std.testing;
+    var parsed = try a.parse(t.allocator,
+        \\CREATE DATAFLOW x FROM QUEUE jobs AS request AS BEGIN
+        \\  BEGIN ATOMIC
+        \\    LET batch MANY(2) = SELECT id FROM items ORDER BY id;
+        \\    FOR item IN batch DO
+        \\      REQUIRE item.id <> 4 ELSE 'FirstKey';
+        \\      REQUIRE item.id <> 6 ELSE 'LastKey';
+        \\    END FOR;
+        \\  END;
+        \\END;
+    , null);
+    defer parsed.deinit();
+    var bound = try a.Types.bind(t.allocator, parsed.program, &.{
+        .{ .name = "jobs", .kind = .queue, .fields = &.{} },
+        .{ .name = "items", .kind = .table, .key = &.{"id"}, .many_order = "id", .fields = &.{.{ .name = "id", .value = .{ .kind = .integer } }} },
+    }, null);
+    defer bound.deinit();
+    var index = try a.Cursor.Index.init(t.allocator, &parsed.program);
+    defer index.deinit();
+    const Native = struct {
+        fn lookup(_: *anyopaque, _: []const u8) anyerror!Value {
+            return error.UnexpectedNativeOperation;
+        }
+        fn evaluate(_: *anyopaque, _: a.Id, _: a.Evaluation.Operation, _: []const Value) anyerror!Value {
+            return error.UnexpectedNativeOperation;
+        }
+        fn condition(_: *anyopaque, _: Value) anyerror!bool {
+            return error.UnexpectedNativeOperation;
+        }
+    };
+    const rows = [_]Value{
+        .{ .record = &.{.{ .name = "id", .value = .{ .integer = 4 } }} },
+        .{ .record = &.{.{ .name = "id", .value = .{ .integer = 6 } }} },
+    };
+    for ([_][]const Value{ &.{}, &rows }) |selected| {
+        var env = try a.Environment.init(t.allocator, index, bound, .{ .record = &.{} });
+        defer env.deinit();
+        var scratch: std.heap.ArenaAllocator = .init(t.allocator);
+        defer scratch.deinit();
+        var driver: Self = .{ .index = index, .bound = bound, .environment = &env, .scratch = scratch.allocator(), .native = .{ .context = &env, .lookup = Native.lookup, .evaluate = Native.evaluate, .condition = Native.condition } };
+        try driver.finish(try driver.prepare(), .applied);
+        const read = try driver.prepare();
+        try t.expect(read.action == .select);
+        try driver.finish(read, .{ .value = .{ .rows = selected } });
+        try driver.finish(try driver.prepare(), .applied);
+        const next = try driver.prepare();
+        if (selected.len == 0) {
+            try t.expect(next.action == .commit);
+        } else {
+            try t.expectEqualStrings("FirstKey", next.action.refused);
+            // Preparation and duplicate observation cannot advance past the
+            // first refusal or evaluate the later differently failing row.
+            const again = try driver.prepare();
+            try t.expectEqual(next.step, again.step);
+            try t.expectEqualStrings("FirstKey", again.action.refused);
+        }
+    }
+}
