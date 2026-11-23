@@ -2963,3 +2963,69 @@ test "bounded physical rewriting preserves current data and independent retained
     try t.expectEqualDeep(original, (try f.query(0, .{ .resource = fixture.resource })).body.resource);
     try t.expectEqual(@as(i64, 10), try (try fixture.query(VersionFixture.id(second), 0, second.turn.generation)).body.version_entries.page.entries[0].?.value.asInteger());
 }
+
+test "committed Queue effect admission preserves original attempts through loss and replacement" {
+    const p = core.protocol;
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const pid = try f.root(.{ .spawn = .{ .allow_collection = true } });
+    _ = try f.root(.{ .own = .{ .pid = pid, .expected_generation = 0, .worker = 0 } });
+    const scope: p.DataLifecycle.Scope = .{ .realm = 42, .resource = 9, .catalog = 1 };
+    const source: p.EffectAdmission.Source = .{
+        .record = .{
+            .target = .{ .definition = g.current_definition, .interpretation = .{ .object = .{ .scope = scope, .branch = 1, .object = 10 }, .revision = 1, .digest = @splat(1) }, .partition = 0 },
+            .operation = .{ .scope = scope, .principal = 0, .operation = 100 },
+            .ordinal = 0,
+        },
+        .offset = 0,
+        .execution = .{ .realm = 42, .pid = pid, .principal = 0, .generation = 1, .code = 1, .workload = null, .transaction = .{ .scope = scope, .principal = 0, .operation = 99 } },
+        .row_sha256 = @splat(3),
+    };
+    var command: g.Command = .{ .admit_effect = .{ .pid = pid, .generation = 1, .source = source } };
+    const signed = try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = command }, f.root_key);
+    try t.expectError(error.UnverifiedEffectIntent, f.engine.submit(signed));
+    const before = f.engine.head.position;
+    try t.expectError(error.Conflict, f.engine.admitCommittedEffect(signed, .{ .position = before - 1, .source = source }));
+    var forged = source;
+    forged.row_sha256[0] ^= 1;
+    try t.expectError(error.InvalidEffectSource, f.engine.admitCommittedEffect(signed, .{ .position = before, .source = forged }));
+    f.journal.fail = .after;
+    try t.expectError(error.LostAcknowledgement, f.engine.admitCommittedEffect(signed, .{ .position = before, .source = source }));
+    f.journal.fail = .none;
+    f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+    // Exact accepted command retries need no new source proof and do not admit.
+    try t.expectEqual(before, try f.engine.submit(signed));
+    f.root_sequence += 1;
+    const binding = try source.commitment();
+    const original = (try f.query(0, .{ .effect_admission = .{ .pid = pid, .key = binding.key } })).body.effect_admission.?;
+    try t.expectEqual(before, original.id);
+    try t.expectEqual(.pending, original.phase);
+    const attempt = try f.root(.{ .dispatch = .{ .pid = pid, .effect = original.id } });
+    _ = try f.root(.{ .own = .{ .pid = pid, .expected_generation = 1, .worker = 0 } });
+    command.admit_effect.generation = 2;
+    const retry = try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = command }, f.root_key);
+    _ = try f.engine.admitCommittedEffect(retry, .{ .position = f.engine.head.position, .source = source });
+    f.root_sequence += 1;
+    const recovered = (try f.query(0, .{ .effect_admission = .{ .pid = pid, .key = binding.key } })).body.effect_admission.?;
+    try t.expectEqual(original.id, recovered.id);
+    try t.expectEqual(attempt, recovered.attempt.?);
+    try t.expectError(error.AttemptAlreadyAuthorized, f.root(.{ .dispatch = .{ .pid = pid, .effect = original.id } }));
+    command.admit_effect.source = forged;
+    const conflict = try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = command }, f.root_key);
+    try t.expectError(error.EffectSourceConflict, f.engine.admitCommittedEffect(conflict, .{ .position = f.engine.head.position, .source = forged }));
+    const admitted = (try f.engine.process(pid)).admitted;
+    _ = try f.root(.{ .observe = .{ .pid = pid, .effect = original.id, .attempt = attempt, .result = core.Value.integer(8) } });
+    try t.expectEqual(admitted, (try f.engine.process(pid)).admitted);
+    try t.expectEqual(.observed, (try f.query(0, .{ .effect_admission = .{ .pid = pid, .key = binding.key } })).body.effect_admission.?.phase);
+    _ = try f.root(.{ .collect = .{ .pid = pid, .kind = .effect, .id = original.id } });
+    try t.expectError(error.EffectCollected, f.query(0, .{ .effect_admission = .{ .pid = pid, .key = binding.key } }));
+    command.admit_effect.source = source;
+    const collected_retry = try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = command }, f.root_key);
+    _ = try f.engine.admitCommittedEffect(collected_retry, .{ .position = f.engine.head.position, .source = source });
+    f.root_sequence += 1;
+    try t.expectError(error.EffectCollected, f.query(0, .{ .effect_admission = .{ .pid = pid, .key = binding.key } }));
+    _ = try f.root(.{ .terminate = pid });
+    _ = try f.root(.{ .collect = .{ .pid = pid, .kind = .process, .id = pid } });
+    try t.expectError(error.EffectCollected, f.query(0, .{ .effect_admission = .{ .pid = pid, .key = binding.key } }));
+}

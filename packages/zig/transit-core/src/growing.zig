@@ -57,6 +57,10 @@ pub const Entry = union(enum) { genesis: struct { genesis: Genesis, head: Head }
 /// Current derived decision, never a persisted permission record.
 pub const Principal = struct { grant: g.Grant, role: u64, enabled: bool, credential_epoch: u64, revision: u64, epoch: u64, sequence: u64 };
 pub const Sequence = struct { sequence: u64 };
+/// Host-only proof: source was read from the committed Queue under current
+/// policy at this native head. It is never decoded from a client request.
+pub const VerifiedEffectIntent = struct { position: u64, source: p.EffectAdmission.Source };
+pub const EffectAdmission = struct { commitment: p.EffectAdmission.Commitment, effect: u64 };
 pub const Receipt = struct { position: u64, digest: [32]u8 };
 pub const StoredView = struct { meta: g.View, snapshot: catalog.Snapshot };
 pub const StoredReadVersion = struct { meta: g.ReadVersion, snapshot: catalog.Snapshot };
@@ -319,6 +323,14 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             try self.refresh();
             _ = try self.authenticate(signed);
         }
+        /// Recheck native disclosure rights while the installed direct owner
+        /// holds its current authority fence. This accepts no new work.
+        pub fn authorizeEffectAdmissionRead(self: *Self, signed: g.SignedRequest) !void {
+            if (signed.request.command != .admit_effect) return error.InvalidEffectSource;
+            try self.refresh();
+            const caller = try self.authenticate(signed);
+            if (!try auth_ops.nativeHas(self, caller, signed.request.command.admit_effect.pid, .inspect)) return error.Forbidden;
+        }
         pub fn validateTime(self: *Self, now: core.Time.Sample) !void {
             const bound = self.genesis.max_clock_error_ms orelse return error.UnsupportedDeadline;
             if (now.error_ms > bound or now.unix_ms > p.max_counter) return error.UntrustedTime;
@@ -339,14 +351,14 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             const needed: p.Permission = switch (command) {
                 .spawn, .create => .spawn,
                 .send => .send,
-                .begin_turn, .turn, .turn_with_versions, .open_view, .close_view => .execute,
+                .begin_turn, .turn, .turn_with_versions, .open_view, .close_view, .admit_effect => .execute,
                 .deliver => .delivery,
                 .declare_payload, .payload_ready => .publish,
                 .dispatch, .observe, .close_effect => .effect,
                 else => .admin,
             };
             const pid: ?u64 = switch (command) {
-                inline .own, .rotate_worker, .retry, .send, .begin_turn, .turn, .associate, .open_view, .close_view, .dispatch, .observe, .close_effect, .cancel_effect, .runtime_intent, .runtime_observe, .runtime_upgrade, .activate, .declare_payload, .payload_ready, .retire_payload, .payload_deleted, .collect, .initialize, .@"suspend", .@"resume" => |c| c.pid,
+                inline .own, .rotate_worker, .retry, .send, .begin_turn, .turn, .associate, .open_view, .close_view, .admit_effect, .dispatch, .observe, .close_effect, .cancel_effect, .runtime_intent, .runtime_observe, .runtime_upgrade, .activate, .declare_payload, .payload_ready, .retire_payload, .payload_deleted, .collect, .initialize, .@"suspend", .@"resume" => |c| c.pid,
                 .turn_with_versions => |command_value| command_value.turn.pid,
                 .deliver => |id| (try work_ops.output(self, id)).destination,
                 .create_resource => |c| c.writer,
@@ -359,6 +371,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             else
                 try auth_ops.nativeHas(self, principal_value, pid, needed);
             if (!permitted) return error.Forbidden;
+            if (command == .admit_effect and !try auth_ops.nativeHas(self, principal_value, pid, .effect)) return error.Forbidden;
         }
         fn duplicate(self: *Self, request: g.Request, principal_value: Principal) !?u64 {
             if (request.sequence > principal_value.sequence) {
@@ -381,7 +394,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             try self.refresh();
             const principal_value = try self.authenticate(signed);
             if (try self.duplicate(signed.request, principal_value) != null) return error.AlreadyCommitted;
-            return self.prepareCurrent(signed.request);
+            return self.prepareCurrent(signed.request, null);
         }
         /// Closing admission is resource backpressure, never expiry or permission
         /// to discard work. Defaults stay unlimited. Legacy derives its reserve
@@ -417,7 +430,12 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         }
         /// Authentication, permission and retry validation must have completed
         /// at this head. Publication CAS rejects every intervening transition.
-        fn prepareCurrent(self: *Self, request: g.Request) !Prepared {
+        fn prepareCurrent(self: *Self, request: g.Request, verified: ?VerifiedEffectIntent) !Prepared {
+            if (request.command == .admit_effect) {
+                const proof = verified orelse return error.UnverifiedEffectIntent;
+                if (proof.position != self.head.position) return error.Conflict;
+                if (!std.meta.eql(proof.source, request.command.admit_effect.source)) return error.InvalidEffectSource;
+            }
             if (self.head.position >= p.max_counter) return error.InvalidPosition;
             try self.checkCapacity(request.command);
             const descriptors = g.blockMutations(request.command);
@@ -496,6 +514,16 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             return self.submitWithBlocks(signed, null);
         }
         pub fn submitWithBlocks(self: *Self, signed: g.SignedRequest, body: ?*const p.Blocks.Body) !u64 {
+            return self.submitVerified(signed, body, null);
+        }
+        /// Trusted service composition only. The service must verify the exact
+        /// committed Queue row under current read/acquire policy before calling.
+        /// No proof is carried over the native command transport.
+        pub fn admitCommittedEffect(self: *Self, signed: g.SignedRequest, verified: VerifiedEffectIntent) !u64 {
+            if (signed.request.command != .admit_effect) return error.InvalidEffectSource;
+            return self.submitVerified(signed, null, verified);
+        }
+        fn submitVerified(self: *Self, signed: g.SignedRequest, body: ?*const p.Blocks.Body, verified: ?VerifiedEffectIntent) !u64 {
             // A local journal may sequence complete submissions before private
             // staging. This is scheduling, never authority: explicit prepared
             // candidates still require the same conditional append, and every
@@ -507,7 +535,19 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             try self.refresh();
             const principal_value = try self.authenticate(signed);
             if (try self.duplicate(signed.request, principal_value)) |receipt| return receipt;
-            return self.commit(try self.prepareCurrent(signed.request));
+            return self.commit(try self.prepareCurrent(signed.request, verified));
+        }
+        /// Privileged host projection. Public callers use the signed query;
+        /// installed admission returns it only after current command admission.
+        pub fn effectAdmission(self: *Self, pid: u64, key: [32]u8) !?g.Effect {
+            var current = try self.state();
+            const original = try current.get(EffectAdmission, try catalog.key(.effect_admission, pid, 0, &key)) orelse return null;
+            const value = work_ops.effect(self, original.effect) catch |err| switch (err) {
+                error.UnknownEffect => return error.EffectCollected,
+                else => return err,
+            };
+            if (value.pid != pid or value.source == null or !std.meta.eql(value.source.?, original.commitment)) return error.InvalidHistory;
+            return value;
         }
         pub fn before(self: *Self, sample: ?core.Time.Sample, deadline: u64) !void {
             _ = self.genesis.max_clock_error_ms orelse return error.UnsupportedDeadline;
@@ -625,7 +665,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                 },
                 .create_resource, .grant_resource, .associate, .open_view, .close_view, .retire_resource, .expire_resource, .reclaim_resource, .begin_turn, .turn, .turn_with_versions => try state_ops.apply(self, candidate, next, request, sample),
                 .deliver => unreachable, // Prepared with its retry records above.
-                .dispatch, .observe, .close_effect, .cancel_effect => try work_ops.apply(self, candidate, request, sample),
+                .admit_effect, .dispatch, .observe, .close_effect, .cancel_effect => try work_ops.apply(self, candidate, request, sample),
                 .runtime_intent, .runtime_observe, .runtime_upgrade, .activate => try @import("growing_runtime.zig").apply(self, candidate, next, request, sample),
                 .create, .initialize, .@"suspend", .@"resume", .expire_suspension => {
                     try @import("growing_lifecycle.zig").apply(self, candidate, request, sample);

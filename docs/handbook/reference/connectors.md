@@ -102,6 +102,28 @@ If admission rejects a call, no route or capture exists for it. An `accept`
 activation reports the missing admitted call and preserves the correlated
 rejection; it does not replace that rejection with a capture lookup failure.
 
+## Committed Queue intents
+
+The installed typed Queue API can admit a native effect from an already committed
+transactional row. It verifies the original selected row, exact bytes and
+execution provenance under current Queue rights, then checks the current process
+owner, generation and native execute/effect rights. Native inspection rights are
+also required to return the effect. A signed native command alone cannot prove
+that its source row committed.
+
+The permanent row-to-effect mapping preserves the original effect and attempt
+through lost replies and worker replacement. Inspect it with the signed
+`effect_admission` query; an expired scheduling lease never authorizes another
+send. Admission does not dispatch, ACK, release the claim's payload-read dependency
+or complete a connector. Keep that dependency until a durable capture/outcome
+owner can recover without its bytes. Terminal effect collection retains the
+mapping and reports collection rather than making the identity available again.
+
+This is an admission foundation. The finite HTTP/RPC workers below still use
+their existing native-turn Exchange capture contract. See the exact
+[admission contract](../../../contracts/TRANSIT_V1.md#committed-queue-effect-admission)
+for the source commitments, trust boundary and crash outcomes.
+
 ## Capture and publication
 
 HTTP and gRPC reuse the [Exchange contract](../../../contracts/STATION_EXCHANGE_V1.md)

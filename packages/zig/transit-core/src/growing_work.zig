@@ -94,6 +94,25 @@ pub fn apply(engine: anytype, candidate: anytype, request: g.Request, now: ?core
     const position = engine.head.position;
     const caller = try engine.principal(request.principal);
     switch (request.command) {
+        .admit_effect => |command| {
+            const process = try engine.process(command.pid);
+            try engine.executable(process, now, false);
+            if (process.owner != request.principal or process.generation != command.generation) return error.StaleGeneration;
+            const commitment = try command.source.commitment();
+            const key = try c.key(.effect_admission, command.pid, 0, &commitment.key);
+            if (try candidate.get(growth.EffectAdmission, key)) |original| {
+                if (!std.meta.eql(original.commitment, commitment)) return error.EffectSourceConflict;
+                // The mapping is permanent even if the terminal effect has
+                // been explicitly collected. It can never authorize re-admission.
+                return;
+            }
+            try candidate.mutate(&.{
+                try c.putMutation(key, growth.EffectAdmission{ .commitment = commitment, .effect = position }),
+                try c.putMutation(address(.effect, position), g.Effect{ .id = position, .pid = command.pid, .payload = try p.Value.init(&commitment.digest), .source = commitment }),
+                try c.putMutation(try c.key(.effects_by_pid, command.pid, position, ""), position),
+                try c.putMutation(address(.pending_effect, position), command.pid),
+            });
+        },
         .dispatch => |command| {
             var value = try effect(engine, command.effect);
             if (value.pid != command.pid) return error.InvalidEffect;
@@ -126,7 +145,8 @@ pub fn apply(engine: anytype, candidate: anytype, request: g.Request, now: ?core
                 value.closure = .{ .reason = if (value.phase == .observed) .observed else .observation_budget, .principal = request.principal, .policy_revision = caller.revision };
                 try candidate.remove(address(.pending_effect, value.id));
             }
-            if (command.result) |result| {
+            if (command.result != null and value.source == null) {
+                const result = command.result.?;
                 var process = try engine.process(command.pid);
                 // A late connector result remains evidence. It cannot revive
                 // a retired caller or create fresh work after its cutoff.

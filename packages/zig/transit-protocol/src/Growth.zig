@@ -5,9 +5,9 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.v1.transactional-log-origin.2026-11-19.
+/// SHA-256 of transit.v1.committed-queue-effect-admission.2026-11-21.
 pub const Definition = enum {
-    @"7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5",
+    ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff,
 
     fn spelling(bytes: []const u8) !Definition {
         if (!std.mem.eql(u8, bytes, @tagName(current_definition))) return error.InvalidEnumTag;
@@ -125,6 +125,7 @@ pub const Command = union(enum) {
     expire_resource: Id,
     reclaim_resource: Id,
     deliver: Id,
+    admit_effect: p.EffectAdmission.Request,
     dispatch: struct { pid: Id, effect: Id, reconcile_before_ms: ?u64 = null, max_observations: u16 = p.max_effect_observations },
     observe: struct { pid: Id, effect: Id, attempt: Id, result: ?p.Value },
     close_effect: struct { pid: Id, effect: Id, attempt: Id, reason: enum { abandoned, deadline } = .abandoned },
@@ -266,6 +267,8 @@ pub const EffectClosure = struct {
     clock_lower_ms: ?u64 = null,
 };
 pub const Effect = struct {
+    /// Authenticated committed Queue source; null for native-turn effects.
+    source: ?p.EffectAdmission.Commitment = null,
     id: Id,
     pid: Id,
     payload: p.Value,
@@ -325,6 +328,7 @@ pub const Query = struct {
         entries: struct { view: ?Id = null, resource: ?Id = null, revision: ?u64 = null, key: ?p.Value = null, after: ?p.Value = null },
         outputs: struct { after: ?Id = null, position: ?Id = null },
         effects: struct { pid: Id, after: ?Id = null, position: ?Id = null },
+        effect_admission: struct { pid: Id, key: [32]u8 },
         read_version: ReadVersionId,
         version_entries: struct { id: ReadVersionId, generation: u64, key: ?p.Value = null, after: ?p.Value = null },
         read_versions: struct { pid: Id, after: ?ReadVersionId = null, position: ?Id = null },
@@ -413,6 +417,7 @@ pub const Response = struct {
         entries: struct { view: ?View, resource: Resource, page: Batch(Entry, p.Value) },
         outputs: Batch(Outbox, Id),
         effects: Batch(Effect, Id),
+        effect_admission: ?Effect,
         read_version: ReadVersion,
         version_entries: struct { version: ReadVersion, generation: u64, resource: Resource, page: Batch(Entry, p.Value) },
         read_versions: Batch(ReadVersion, ReadVersionId),
@@ -434,6 +439,8 @@ pub fn validateKey(key: p.Value) !void {
 fn counters(value: anytype) !void {
     const T = @TypeOf(value);
     if (T == p.Value) return value.validate();
+    // Direct object/operation identities retain their full-width contract.
+    if (T == p.EffectAdmission.Source) return value.validate();
     switch (@typeInfo(T)) {
         .int => if (value > p.max_counter) return error.InvalidCounter,
         .optional => if (value) |child| try counters(child),
@@ -450,6 +457,10 @@ pub fn validate(request: Request) !void {
     try counters(request);
     if (request.sequence == 0) return error.InvalidSequence;
     switch (request.command) {
+        .admit_effect => |c| {
+            try c.validate();
+            if (c.source.execution.realm != request.realm) return error.WrongProtocolRealm;
+        },
         .create => |c| for (c.required, 0..) |slot, index| if (slot) |name| {
             try validateKey(name);
             for (c.required[0..index]) |previous| if (previous) |other| if (name.eql(other)) return error.InvalidStateKey;
@@ -561,6 +572,11 @@ pub fn validateResponse(response: Response, query: Query) !void {
     if (response.version != version or response.realm != query.realm or response.position == 0 or
         !std.mem.eql(u8, @tagName(response.body), @tagName(query.kind))) return error.InvalidRead;
     switch (query.kind) {
+        .effect_admission => |q| if (response.body.effect_admission) |value| {
+            try validateEffect(value, response.position);
+            const source = value.source orelse return error.InvalidRead;
+            if (value.pid != q.pid or !std.mem.eql(u8, &source.key, &q.key)) return error.InvalidRead;
+        },
         .authorization => |q| try p.Authorization.validateResult(response.body.authorization, q, query.realm, query.principal),
         .storage => try response.body.storage.validate(),
         .delivery => if (response.body.delivery.next == 0) return error.InvalidRead,
@@ -1212,6 +1228,7 @@ test "bounded multi-key read validation preserves slot identity and absence" {
 /// Validates recorded native evidence only; this never asserts that a connector
 /// performed I/O, that an observation is honest, or that remote work succeeded.
 pub fn validateEffect(value: Effect, position: u64) error{InvalidRead}!void {
+    if (value.source) |source| if (!std.mem.eql(u8, value.payload.slice(), &source.digest)) return error.InvalidRead;
     if (value.id == 0 or value.pid == 0 or value.pid >= value.id or value.id >= position or position > p.max_counter or
         value.max_observations == 0 or value.max_observations > p.max_effect_observations or value.observations > value.max_observations) return error.InvalidRead;
     const attempted = value.phase != .pending and value.phase != .cancelled;

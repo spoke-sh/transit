@@ -35,10 +35,17 @@ pub fn validate(allocator: std.mem.Allocator, connection: c.DirectTableProtocol.
         .observe => .cut,
         .current_time => .current_time,
         .page => .page,
+        .admit_effect => .effect_admission,
     };
     if (std.meta.activeTag(result) != expected) return error.InvalidQueueResponse;
     switch (result) {
         .recovering, .timed_out => unreachable,
+        .effect_admission => |value| {
+            try c.protocol.Growth.validateEffect(value.effect, value.position);
+            const command = request.admit_effect.signed.request.command.admit_effect;
+            if (value.effect.pid != command.pid or value.effect.source == null or
+                !std.meta.eql(value.effect.source.?, try command.source.commitment())) return error.InvalidQueueResponse;
+        },
         .operation => |maybe| if (maybe) |value| {
             const work = switch (request) {
                 .operation, .cancel => |work| work,

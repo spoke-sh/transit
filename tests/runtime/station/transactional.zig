@@ -63,7 +63,7 @@ fn setup(init: std.process.Init, client: c.DirectTableClient, admin: anytype, ro
     defer output.deinit();
     const allocator = output.allocator();
     const pid = try admin.submit(.{ .spawn = .{} });
-    _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .process, .id = pid }, .grantee = role, .privileges = p.permission(.execute) | p.permission(.inspect) } });
+    _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .process, .id = pid }, .grantee = role, .privileges = p.permission(.execute) | p.permission(.inspect) | (if (case == .large) p.permission(.effect) else @as(u64, 0)) } });
     _ = try admin.submit(.{ .own = .{ .pid = pid, .expected_generation = 0, .worker = 101 } });
     const activation: p.Transaction.Execution = .{ .realm = client.connection.scope.realm, .pid = pid, .principal = 101, .generation = 1, .code = 1, .workload = null, .input = null };
     const table_name = try std.fmt.allocPrint(allocator, "actor_rows_{s}", .{@tagName(case)});
@@ -150,7 +150,7 @@ fn load(init: std.process.Init, path: []const u8) !Saved {
 fn committed(case: Case) bool {
     return case == .measured or case == .small or case == .large or case == .decision or case == .cleared;
 }
-fn verify(init: std.process.Init, client: c.DirectTableClient, saved: Saved, index: usize) !void {
+fn verify(init: std.process.Init, client: c.DirectTableClient, saved: Saved, index: usize, path: []const u8) !void {
     const count: usize = if (saved.case == .measured) 23 else 1;
     const turn = index + 1;
     var enqueue = saved.enqueue.operation;
@@ -208,14 +208,38 @@ fn verify(init: std.process.Init, client: c.DirectTableClient, saved: Saved, ind
         try t.expectEqual(@as(u32, 0), recorded.input.ordinal);
         try t.expectEqualSlices(u8, "handled", try recorded.body.decode(output.allocator(), 8192));
         try t.expectEqualDeep(Actor.operation(saved.actor.connection, digest, turn, "statement", if (saved.case == .large) 7 else 2), entries.rows[0].operation);
-        const outbound: p.StreamQueue.Claim = .{ .target = saved.actor.outbox, .operation = Actor.operation(client.connection, digest, turn, "outbox-oracle", 0), .maximum = 1, .lease_ms = saved.actor.lease_ms, .predicate = null };
-        const accepted = (try Queue.apply(&output, client, .{ .mutate = .{ .work = .{ .claim = outbound } } })).operation.?.claim;
-        const output_rows = (try Queue.apply(&output, client, .{ .page = .{ .cursor = .{ .receipt = accepted, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } })).page;
+        var outbox_client = client;
+        if (saved.case == .large) {
+            outbox_client.connection.principal = replacement(saved.case);
+            outbox_client.key = try replacementKey(saved.case);
+        }
+        const outbound: p.StreamQueue.Claim = .{ .target = saved.actor.outbox, .operation = Actor.operation(outbox_client.connection, digest, turn, "outbox-oracle", 0), .maximum = 1, .lease_ms = saved.actor.lease_ms, .predicate = null };
+        const accepted = (try Queue.apply(&output, outbox_client, .{ .mutate = .{ .work = .{ .claim = outbound } } })).operation.?.claim;
+        const output_rows = (try Queue.apply(&output, outbox_client, .{ .page = .{ .cursor = .{ .receipt = accepted, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } })).page;
         try t.expect(output_rows.cursor.complete());
         try t.expectEqual(@as(usize, 1), output_rows.rows.len);
         try t.expectEqualSlices(u8, if (saved.case == .large) &large_value else &sequenceValue(index), output_rows.rows[0].value.cells[1].value.atom.bytes);
         try t.expectEqualDeep(Actor.operation(saved.actor.connection, digest, turn, "statement", if (saved.case == .large) 8 else 3), output_rows.rows[0].operation);
-        _ = try Queue.apply(&output, client, .{ .mutate = .{ .work = .{ .settle = .{ .operation = Actor.operation(client.connection, digest, turn, "outbox-oracle-ack", 0), .lease = output_rows.rows[0].lease.original, .action = .ack } } } });
+        if (saved.case == .large) {
+            var declaring = saved.actor;
+            declaring.connection = outbox_client.connection;
+            const original = try s.Effect.prepare(declaring, output_rows, 0, 2, 1, outbox_client.key);
+            const encoded = try original.encode(init.gpa);
+            defer init.gpa.free(encoded);
+            const original_path = try std.fmt.allocPrint(output.allocator(), "{s}.effect", .{path});
+            try save(init, original_path, original);
+            const stored = try std.Io.Dir.cwd().readFileAlloc(init.io, original_path, output.allocator(), .limited(c.DirectTableProtocol.max_request_bytes));
+            var loaded = try s.Effect.Saved.load(init.gpa, stored);
+            defer loaded.deinit();
+            try t.expectEqualSlices(u8, encoded, stored);
+            const admitted_effect = (try loaded.value.admit(&output, outbox_client)).effect_admission.effect;
+            try t.expectEqual(.pending, admitted_effect.phase);
+            const recovered_effect = (try loaded.value.inspect(client.authority, outbox_client.connection.principal, outbox_client.key)).?;
+            try t.expectEqualDeep(admitted_effect, recovered_effect);
+            try t.expectEqualDeep(original.admission.signed.request.command.admit_effect.source.execution.transaction, recorded.transaction);
+            try t.expectEqual(0, (try client.authority.query(.{ .realm = 42, .principal = outbox_client.connection.principal, .kind = .{ .process = saved.actor.pid } }, outbox_client.key)).body.process.process.admitted);
+        }
+        _ = try Queue.apply(&output, outbox_client, .{ .mutate = .{ .work = .{ .settle = .{ .operation = Actor.operation(outbox_client.connection, digest, turn, "outbox-oracle-ack", 0), .lease = output_rows.rows[0].lease.original, .action = .ack } } } });
     }
 
     try t.expectEqual(@as(u64, if (expected) count else 0), (try Stream.apply(&output, client, .{ .observe = saved.actor.journal })).cut.next);
@@ -712,10 +736,12 @@ fn exerciseTimersAndPool(init: std.process.Init, client: c.DirectTableClient, ad
     var timed_caller: TimedCaller = .{ .caller_client = client, .timers_q = timers_queue, .peer_inbox = callee_inbox, .callee_pid = callee_spec.pid, .delay_ms = 4500 };
     var timed_callee: TimedCallee = .{ .return_inbox = caller_inbox };
 
-    // 1. Schedule timed call; ticket stays unclaimable on QueueTimingWheel before deadline_ms.
+    // 1. Schedule the timed call. Fixed-clock native Queue tests cover the
+    // before/at-deadline visibility boundary; Turn tests bind visible_ms to the
+    // ticket deadline. Real disk commit can take longer than the timer delay,
+    // so the first observer step must already carry the crash hook below.
     try enqueueEnvelope(&output, client, caller_inbox, 835001, caller_spec.pid, .{ .kind = .cast, .payload = "slow" });
     try t.expectEqual(Runner.Result.committed, try advanceComplete(&caller_runner, .{ .context = &timed_caller, .run = TimedCaller.handle }));
-    try t.expectEqual(s.Observer.Result.idle, try observer.step(10));
 
     // 2. Observer crash between TMO1 enqueue and ticket ACK deduplicates via deterministic d.Operation on restart.
     const CrashAtEnqueued = struct {
@@ -1745,7 +1771,7 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
     if (std.mem.eql(u8, phase, "setup")) return setup(init, client, admin, role, path, case);
     var saved = try load(init, path);
     if (std.mem.eql(u8, phase, "verify")) {
-        for (0..@as(usize, if (case == .measured) 23 else 1)) |index| try verify(init, client, saved, index);
+        for (0..@as(usize, if (case == .measured) 23 else 1)) |index| try verify(init, client, saved, index, path);
         return;
     }
     if (std.mem.eql(u8, phase, "measure")) return measure(init, client, saved);

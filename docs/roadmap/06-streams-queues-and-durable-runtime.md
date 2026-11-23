@@ -15,33 +15,26 @@ durable service work concerns Station calls, behaviors and effect consumers;
 it must not make ordinary serving depend on Station. Share neutral transaction,
 history and recovery owners, with Station adapters above that boundary.
 
-The [completion implementation plan, 2026-11-18](streams-queues-runtime-completion.md)
-refreshes remaining closeout work at `main` revision `c1f2680d9` after
-[PR #451](https://github.com/spoke-sh/transit/pull/451) (shared transaction
-session and data-client lifecycle), [PR #452](https://github.com/spoke-sh/transit/pull/452)
-([owned Table/KV transaction reads](transaction-read-ownership.md)), server
-delivery/Station controller ownership ([#460](https://github.com/spoke-sh/transit/pull/460)),
-standalone `transit-node` retirement ([#463](https://github.com/spoke-sh/transit/pull/463)),
-[M13 serving separation](13-declarative-serving-and-reactive-dataflows.md)
-([#464](https://github.com/spoke-sh/transit/pull/464)) and Ursula removal with
-MinIO S3 tiering ([#467](https://github.com/spoke-sh/transit/pull/467)). With Units `A` and `B` delivered in [PR #471](https://github.com/spoke-sh/transit/pull/471)
-(`70dc36d57`, 12-profile
-[Stream/Queue baseline](../history/qualification/performance.md#batched-transactional-station-comparison-and-12-profile-streamqueue-baseline--2026-11-18),
-actor/DLQ/GC pressure schedule, shared 1–16 statement `stage_batch`/`batch`
-writes, `QueueClaimRelease` / `Runner.releaseClaimRead`, and a 49.9% median /
-56.6% p95 private Station turn-latency reduction to `6,018.2 ms` / `8,355.6 ms`),
-it orders the remaining closeout across two parallelizable tracks—Track 1 (`C`–`F`:
-authenticated calls/replies, timers/names/supervision,
-connector/Query/courier migration, and public 11-SDK/example/Board cutover with
-legacy `GenServer`/`Turn` deletion) and Track 2 (`G`: single-WAL Table
-token/commit composition, `TRUNCATE TABLE`, and `19 ms` `INSERT` / `10–20 ms`
-warm `SELECT` targets)—followed by single-revision qualification (`H`). The
-[transactional calls, timers, names and supervision plan, 2026-11-19](station-calls-services-implementation.md)
-specifies the immediate Track 1 **Batch 6 (`Units C` and `D`)** slice at
-`f31673bbd`. Its
-remaining estimate is 11–15 review units and 12–21.5 direct engineer-weeks
-(~15–27 with contingency), excluding implementing M7's `DocumentPartition`
-(`C4`/`C5`/`C7`) itself. M6 remains **In Progress**.
+The [completion implementation plan, refreshed 2026-11-21](streams-queues-runtime-completion.md)
+reconciles remaining work at `origin/main` revision `aa52980ad`. Units A/B landed
+in PR #471 (12-profile log baseline, actor/DLQ/GC pressure, shared batching and
+claim-read release). PR #475 (`1fab91d7c`) implemented Units C/D's
+[transactional calls, timers, names and supervision](station-calls-services-implementation.md)
+behind the internal API boundary. Preserve their source-specific proof limits
+and final integration obligations.
+
+The next [connector and captured-query implementation plan](station-consumer-migration-implementation.md)
+expands Unit E into six review units: original effect admission, transactional
+capture storage, one installed HTTP journey, remaining effect consumers,
+captured queries and server activation. E1's verified committed Queue effect
+admission and private recovery adapter are implemented for review; capture
+storage and the installed HTTP journey remain pending. Unit G's single-WAL Table token/commit
+composition, `TRUNCATE` and inherited latency targets can proceed independently.
+Unit F's public ABI/11-SDK/example/Board cutover and global legacy delivery/turn
+removal remain jointly gated with M7 C4/C5/C7; Unit H qualifies one final
+revision. The remaining decomposition is 12–14 review units, excluding M7
+implementation, with effort to be re-estimated after E's authority contract.
+M6 remains **In Progress**.
 
 The [private Station implementation plan, 2026-11-11](station-transaction-implementation.md)
 records **Batch 5: one private transactional Station behavior**. The native

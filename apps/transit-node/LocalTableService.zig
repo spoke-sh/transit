@@ -142,6 +142,10 @@ pub fn executeResultRef(self: *Self, comptime format: Output, arena: *std.heap.A
     const original_context = if (request.closure != null or request.borrow != null) original.claim.context else if (request.delegation) |delegation| try delegation.binding.context(allocator) else context;
     var policy = try Policy.init(self.engine, self.configuration, original, original_context, if (request.delegation != null) request.proof else null);
     policy.request_execution = request.execution;
+    if (request.action == .queue and request.action.queue == .admit_effect) {
+        policy.effect_admission = &request.action.queue.admit_effect.signed;
+        _ = try policy.observation();
+    }
     policy.paged = request.action == .transaction or request.transaction != null;
     const owner = self.engine.journal.backend;
     var observation = self.engine.journal.observe;
@@ -320,8 +324,9 @@ fn executeDdl(raw: *anyopaque, catalog: *D, binding: d.Binding, policy: D.Policy
     var runner: Runner = .{ .engine = self.engine, .principal = self.registrar.principal, .key = self.registrar.key, .role = self.registrar.role };
     return (try runner.run(catalog, binding, policy, steps)).observation;
 }
-fn executeQueue(raw: *anyopaque, output: std.mem.Allocator, catalog: *D, policy: D.Policy, request: c.DirectQueue.Request) !c.DirectQueue.Result {
+fn executeQueue(raw: *anyopaque, output: std.mem.Allocator, catalog: *D, policy: D.Policy, request: c.DirectQueue.Request) anyerror!c.DirectQueue.Result {
     const self: *Self = @ptrCast(@alignCast(raw));
+    if (request == .admit_effect) return self.admitQueueEffect(output, catalog, policy, request);
     const resident = self.resident orelse return self.executeQueueCold(output, catalog, policy, request);
     var scratch: std.heap.ArenaAllocator = .init(catalog.allocator);
     defer scratch.deinit();
@@ -331,6 +336,40 @@ fn executeQueue(raw: *anyopaque, output: std.mem.Allocator, catalog: *D, policy:
         .clock = if (self.engine.clock != null) .{ .context = self, .read = streamTime } else null,
     }, request, policy);
 }
+/// Source verification belongs to this installed composition, not the client,
+/// deterministic kernel, or a Station handler. The native CAS fences every
+/// policy change between the Queue read and admission. No transport is invoked.
+fn admitQueueEffect(self: *Self, output: std.mem.Allocator, catalog: *D, policy: D.Policy, request: c.DirectQueue.Request) !c.DirectQueue.Result {
+    try request.validate(policy.subject.principal(), self.configuration.scope);
+    const intent = request.admit_effect;
+    const command = intent.signed.request.command.admit_effect;
+    const position = try self.engine.journal.tail();
+    const result = try executeQueue(self, output, catalog, policy, .{ .page = .{ .cursor = intent.cursor, .limits = .{ .rows = 1, .encoded_bytes = 4 * 1024 * 1024 } } });
+    if (result == .recovering) return result;
+    defer result.deinit(output);
+    if (result != .page or result.page.rows.len != 1) return error.InvalidEffectSource;
+    const row = result.page.rows[0];
+    const execution = row.execution orelse return error.UnverifiedEffectIntent;
+    var scratch: std.heap.ArenaAllocator = .init(catalog.allocator);
+    defer scratch.deinit();
+    const bytes = try row.encoded.decode(scratch.allocator(), 4 * 1024 * 1024);
+    var row_digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(bytes, &row_digest, .{});
+    const source: c.protocol.EffectAdmission.Source = .{
+        .record = .{ .target = intent.cursor.receipt.claim.target, .operation = row.operation, .ordinal = row.ordinal },
+        .offset = row.lease.original.offset,
+        .execution = execution,
+        .row_sha256 = row_digest,
+    };
+    if (!std.meta.eql(source, command.source)) return error.InvalidEffectSource;
+    // Lease liveness schedules consumers; it is deliberately not execution
+    // authority. Immutable original selection and current rights are required.
+    _ = try self.engine.admitCommittedEffect(intent.signed, .{ .position = position, .source = source });
+    const commitment = try source.commitment();
+    const effect = try self.engine.effectAdmission(command.pid, commitment.key) orelse return error.InvalidHistory;
+    return .{ .effect_admission = .{ .effect = effect, .position = self.engine.head.position } };
+}
+
 noinline fn executeQueueCold(self: *Self, output: std.mem.Allocator, catalog: *D, policy: D.Policy, request: c.DirectQueue.Request) !c.DirectQueue.Result {
     var scratch: std.heap.ArenaAllocator = .init(catalog.allocator);
     defer scratch.deinit();

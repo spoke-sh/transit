@@ -19,6 +19,7 @@ paged: bool = false,
 checked_epoch: ?c.storage.TablePartition.Guard.Fence = null,
 recovery_execution: ?p.Transaction.Execution = null,
 request_execution: ?p.Transaction.Execution = null,
+effect_admission: ?*const p.Growth.SignedRequest = null,
 
 pub fn init(engine: *backend.DataAuthority.Engine, configuration: c.DirectCatalog.Configuration, proof: p.Authorization.Proof, request_digest: [32]u8, executor: ?p.Authorization.Proof) !Self {
     try configuration.validate();
@@ -197,6 +198,7 @@ pub fn observation(self: *Self) !struct { revision: u64, subject: p.Authorizatio
     const fence = try guard.acquire(guard.context);
     defer guard.release(guard.context);
     if (self.request_execution) |condition| try self.engine.requireTransactionExecution(condition, self.policy().subject, false);
+    if (self.effect_admission) |signed| try self.engine.authorizeEffectAdmissionRead(signed.*);
     if (self.paged) if (self.checked_epoch) |previous| try requireSameEpoch(previous, fence);
     if (self.recovery_execution) |condition| try self.engine.requireTransactionExecution(condition, self.policy().subject, true);
     return .{ .revision = fence.policy_epoch - 1, .subject = value.verified.? };

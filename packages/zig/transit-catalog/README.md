@@ -750,3 +750,10 @@ the exact nonempty file bytes, bounded to 64 KiB; no trimming or substitution is
 implicit. This metadata component still needs the administrative secret cutover,
 executable helper dependencies and live HTTP loader integration described in the
 [application contract](../../../contracts/APPLICATION_PROGRAM_V1.md).
+
+`DirectQueueClient` also exposes installed `admit_effect` and derives exact
+`EffectAdmission.Source` commitments with `Page.effectSource(index)`. Persist the
+signed native admission and source before submission. Lost replies require the
+original native `effect_admission` lookup, not inspection of the scheduling claim.
+The service verifies the committed row independently; the client commitment grants
+no rights. See [native effect admission](../../../contracts/TRANSIT_V1.md#committed-queue-effect-admission).

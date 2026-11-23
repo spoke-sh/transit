@@ -25,6 +25,9 @@ pub const Options = struct {
 /// neighboring collections or the caller's other schema options.
 pub fn fieldOptions(comptime T: type, comptime name: []const u8, comptime options: Options) Options {
     var result = options;
+    if (comptime @hasDecl(T, "json_schema_safe_integer_fields") and @hasField(@TypeOf(T.json_schema_safe_integer_fields), name)) {
+        result.safe_integers = @field(T.json_schema_safe_integer_fields, name);
+    }
     if (comptime @hasDecl(T, "json_schema_sequence_bounds") and @hasField(@TypeOf(T.json_schema_sequence_bounds), name)) {
         result.sequence_max_length = @field(T.json_schema_sequence_bounds, name);
     }

@@ -14315,6 +14315,41 @@
           "actions": [
             "inspect_scope"
           ]
+        },
+        "EffectCollected": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "EffectSourceConflict": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "EffectAdmissionUnavailable": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "InvalidEffectSource": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
+        },
+        "UnverifiedEffectIntent": {
+          "code": "inspection.authority_rejected",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
         }
       }
     },
