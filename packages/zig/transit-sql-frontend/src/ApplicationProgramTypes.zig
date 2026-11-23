@@ -98,8 +98,17 @@ columns: []const Field = &.{},
 expression_depth: usize = 0,
 
 pub fn bind(allocator: std.mem.Allocator, program: ast.Program, resources: []const Resource, location: ?*sql.Location) !Bound {
+    return bindForAnalysis(allocator, program, resources, &.{}, location);
+}
+
+/// Check a specialization with unknown public scalar constants. Parameters are
+/// immutable checking inputs, separate from the Queue record and resource uses.
+/// This does not make the program executable: installed programs still use
+/// bind(), which rejects unresolved parameter names. Names/values are owned by
+/// the returned arena. Record/protected inputs and more than 64 parameters reject.
+pub fn bindForAnalysis(allocator: std.mem.Allocator, program: ast.Program, resources: []const Resource, parameters: []const Field, location: ?*sql.Location) !Bound {
     try ast.Codec.validate(program);
-    if (resources.len > 256 or program.nodes > ast.max_nodes) return error.ProgramTooComplex;
+    if (resources.len > 256 or program.nodes > ast.max_nodes or parameters.len > ast.max_arguments) return error.ProgramTooComplex;
     var arena: std.heap.ArenaAllocator = .init(allocator);
     errdefer arena.deinit();
     const values = try arena.allocator().alloc(?Value, @as(usize, program.nodes) + 1);
@@ -117,6 +126,17 @@ pub fn bind(allocator: std.mem.Allocator, program: ast.Program, resources: []con
     };
     const queue = try self.resource(program.queue_schema, program.queue, .queue, .{ .resource = 0, .read = true, .consume = true });
     try self.define(program.input, .{ .kind = .record, .fields = queue.fields });
+    for (parameters) |parameter| {
+        if (parameter.name.len == 0 or parameter.name.len > 255 or std.mem.indexOfScalar(u8, parameter.name, 0) != null) return error.InvalidColumnName;
+        if (parameter.value.protected or parameter.value.fields.len != 0) return error.ProgramTypeMismatch;
+        switch (parameter.value.kind) {
+            .boolean, .integer, .text, .binary, .uuid, .timestamp, .duration, .json => {},
+            else => return error.ProgramTypeMismatch,
+        }
+        // A parameter must not change unqualified Queue predicate resolution.
+        for (queue.fields) |column| if (std.mem.eql(u8, column.name, parameter.name)) return error.DuplicateProgramVariable;
+        try self.define(try arena.allocator().dupe(u8, parameter.name), parameter.value);
+    }
     self.requirements.value(.{ .kind = .record, .fields = queue.fields });
     if (program.deadline != null) self.requirements.features.insert(.deadline);
     if (program.predicate) |predicate| {
@@ -136,7 +156,7 @@ pub fn bind(allocator: std.mem.Allocator, program: ast.Program, resources: []con
     if (program.failure) |failure| {
         // A failure continuation may run after loss/restart. Its environment is
         // the original input and typed failure, never a partially executed LET.
-        self.symbols.shrinkRetainingCapacity(1);
+        self.symbols.shrinkRetainingCapacity(1 + parameters.len);
         try self.define(failure.name, failure_value);
         try self.block(failure.instructions);
     }
@@ -575,6 +595,67 @@ const test_resources = [_]Resource{
     .{ .name = "state", .kind = .kv, .fields = &.{.{ .name = "value", .value = Value.public(.text) }} },
     .{ .name = "sink", .kind = .sink, .fields = &.{} },
 };
+
+fn analysisAllocation(allocator: std.mem.Allocator) !void {
+    var parsed = try ast.parse(allocator,
+        \\CREATE DATAFLOW x FROM QUEUE requests AS request AS BEGIN
+        \\  LET whole = request;
+        \\  LET local = constant;
+        \\  REQUIRE constant > 0 ELSE 'Invalid';
+        \\ON FAILURE failure
+        \\  REQUIRE constant > 0 ELSE 'Invalid';
+        \\END;
+    , null);
+    defer parsed.deinit();
+    var names: [64][3]u8 = undefined;
+    var fields: [64]Field = undefined;
+    var parameters: [64]Field = undefined;
+    for (&fields, &names, 0..) |*column, *name, i| {
+        name.* = .{ 'c', @intCast('A' + i / 26), @intCast('A' + i % 26) };
+        column.* = .{ .name = name, .value = Value.public(.integer) };
+        parameters[i] = .{ .name = name, .value = Value.public(.integer) };
+    }
+    const resources = [_]Resource{.{ .name = "requests", .kind = .queue, .fields = &fields }};
+    var bound = try bindForAnalysis(allocator, parsed.program, &resources, &.{.{ .name = "constant", .value = Value.public(.integer) }}, null);
+    defer bound.deinit();
+    try std.testing.expectEqual(64, bound.input.fields.len);
+    try std.testing.expectEqual(64, bound.values[parsed.program.body.instructions[0].value.let.value.expression.id].?.fields.len);
+    try std.testing.expectEqual(1, bound.uses.len);
+    try std.testing.expect(bound.uses[0].consume and !bound.uses[0].write);
+    try std.testing.expectEqual(0, bound.native.count());
+    const small_resources = [_]Resource{.{ .name = "requests", .kind = .queue, .fields = &.{} }};
+    parameters[0].name = "constant";
+    var full = try bindForAnalysis(allocator, parsed.program, &small_resources, &parameters, null);
+    defer full.deinit();
+    try std.testing.expectEqual(0, full.input.fields.len);
+}
+
+test "analysis constants preserve full Queue records and allocation ownership" {
+    try analysisAllocation(std.testing.allocator);
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, analysisAllocation, .{});
+}
+
+test "analysis constants are bounded public scalars and never executable bindings" {
+    const t = std.testing;
+    var parsed = try ast.parse(t.allocator, "CREATE DATAFLOW x FROM QUEUE requests AS request AS BEGIN REQUIRE constant > 0 ELSE 'Invalid'; END;", null);
+    defer parsed.deinit();
+    try t.expectError(error.UnknownProgramVariable, bind(t.allocator, parsed.program, &test_resources, null));
+    const parameter: Field = .{ .name = "constant", .value = Value.public(.integer) };
+    try t.expectError(error.ProgramTooComplex, bindForAnalysis(t.allocator, parsed.program, &test_resources, &(@as([65]Field, @splat(parameter))), null));
+    try t.expectError(error.DuplicateProgramVariable, bindForAnalysis(t.allocator, parsed.program, &test_resources, &.{ parameter, parameter }, null));
+    for ([_][]const u8{ "request", "id" }) |name| {
+        try t.expectError(error.DuplicateProgramVariable, bindForAnalysis(t.allocator, parsed.program, &test_resources, &.{.{ .name = name, .value = parameter.value }}, null));
+    }
+    for ([_][]const u8{ "", "bad\x00name" }) |name| {
+        try t.expectError(error.InvalidColumnName, bindForAnalysis(t.allocator, parsed.program, &test_resources, &.{.{ .name = name, .value = parameter.value }}, null));
+    }
+    for ([_]Value{ Value.public(.record), Value.public(.secret), Value.public(.capability), Value.public(.failure), Value.public(.protected_json), .{ .kind = .integer, .protected = true }, .{ .kind = .integer, .fields = &.{parameter} } }) |value| {
+        try t.expectError(error.ProgramTypeMismatch, bindForAnalysis(t.allocator, parsed.program, &test_resources, &.{.{ .name = "constant", .value = value }}, null));
+    }
+    var locals = try ast.parse(t.allocator, "CREATE DATAFLOW x FROM QUEUE requests AS request AS BEGIN LET local = constant; ON FAILURE failure REQUIRE local > 0 ELSE 'Invalid'; END;", null);
+    defer locals.deinit();
+    try t.expectError(error.UnknownProgramVariable, bindForAnalysis(t.allocator, locals.program, &test_resources, &.{parameter}, null));
+}
 
 test "application program types reject protected disclosure and invalid bindings" {
     const t = std.testing;
