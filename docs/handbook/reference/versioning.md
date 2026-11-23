@@ -108,9 +108,14 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff`.
+`dd6352c075f480dabbc2d1349cc79c9a5c85687ecafd33055d6a2d56f28251d0`.
 
-This definition adds committed Queue effect admission, its permanent native
+This definition includes bounded atomic row collections, loop continuation frames
+and cumulative read counters. Earlier application declarations and saved
+continuations require their original build; no default collection state or
+implicit conversion is supplied. See the [bounded iteration contract](../../../contracts/APPLICATION_PROGRAM_V1.md#bounded-many-row-reads-and-iteration).
+
+It also includes committed Queue effect admission, its permanent native
 source mapping, signed lookup and current-authorized installed verification.
 Transactional effect observations do not deliver legacy native mailbox inputs.
 Earlier native histories, stored requests and generated clients require their
