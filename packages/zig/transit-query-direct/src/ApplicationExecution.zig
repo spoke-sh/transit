@@ -205,14 +205,14 @@ pub const State = struct {
     acknowledged: bool,
     terminal: ?p.Transaction.Decision,
     retained_bytes: u64,
-    many_usage: q.ApplicationData.SelectUsage = .{},
+    many_usage: q.ApplicationData.SelectUsage,
     failure: ?Failure,
     aborting: ?Failure,
     completion: ?c.DirectTransactionWorkspace.StatementCompletion,
     cancelled: bool,
     effect: ?struct { descriptor: E.Descriptor, outcome: ?E.Outcome, withdrawn: ?T.Fence },
     pub fn initial() State {
-        return .{ .phase = .evaluate, .current = null, .candidate = null, .transaction = null, .statement = null, .purpose = .instruction, .basis = null, .checkpoint = null, .boundary = null, .atomic_aborted = false, .acknowledged = false, .terminal = null, .retained_bytes = 0, .failure = null, .aborting = null, .completion = null, .cancelled = false, .effect = null };
+        return .{ .phase = .evaluate, .current = null, .candidate = null, .transaction = null, .statement = null, .purpose = .instruction, .basis = null, .checkpoint = null, .boundary = null, .atomic_aborted = false, .acknowledged = false, .terminal = null, .retained_bytes = 0, .many_usage = q.ApplicationData.SelectUsage.zero, .failure = null, .aborting = null, .completion = null, .cancelled = false, .effect = null };
     }
     fn effectEvidence(self: State) !?EffectResult {
         const effect = self.effect orelse return null;
@@ -272,7 +272,7 @@ pub const Candidate = struct {
     instruction: a.Id,
     transaction: ?T.Key,
     environment: a.Environment.Snapshot,
-    many_usage: q.ApplicationData.SelectUsage = .{},
+    many_usage: q.ApplicationData.SelectUsage,
     basis: ?d.Position,
     sequence: u64,
     action: union(enum) {
@@ -1400,4 +1400,39 @@ test "application host bindings release their own context when another borrow re
     scope.step = 2;
     try t.expectError(error.InvalidProgramNode, host.bind(host.context, scope));
     try t.expect(factory.slots[0].scope == null and factory.slots[1].scope == null);
+}
+
+test "application continuations cannot reset accounting by omitting saved counters" {
+    const t = std.testing;
+    var original = State.initial();
+    original.many_usage = .{ .requests = 9, .scan_rows = 3, .result_bytes = 512 };
+    const candidate: Candidate = .{
+        .definition = p.Growth.current_definition,
+        .invocation = .{ .definition = p.Growth.current_definition, .connection = .{ .scope = .{ .realm = 42, .resource = 3, .catalog = 9 }, .branch = 1, .audience = 5, .principal = 4, .role = 6 }, .account = @splat(1), .token = @splat(2) },
+        .previous = null,
+        .step = 42,
+        .instruction = 0,
+        .transaction = null,
+        .environment = .{ .definition = p.Growth.current_definition, .binding_digest = @splat(3), .cursor = .{ .phase = .complete, .step = 42, .frames = &.{} }, .values = &.{} },
+        .many_usage = original.many_usage,
+        .basis = null,
+        .sequence = 0,
+        .action = .advance,
+    };
+    // Exercise both persisted record shapes, before their separate semantic
+    // ownership/continuation validation. Neither decoder may invent accounting.
+    inline for (.{ original, candidate }) |saved| {
+        const Saved = @TypeOf(saved);
+        const encoded = try p.Json.valueAlloc(t.allocator, saved);
+        defer t.allocator.free(encoded);
+        const restored = try p.Json.parseFromSliceOwned(Saved, t.allocator, encoded);
+        defer restored.deinit();
+        try t.expectEqualDeep(saved, restored.value);
+        var tree = try std.json.parseFromSlice(std.json.Value, t.allocator, encoded, .{});
+        defer tree.deinit();
+        try t.expect(tree.value.object.swapRemove("many_usage"));
+        const missing = try p.Json.valueAlloc(t.allocator, tree.value);
+        defer t.allocator.free(missing);
+        try t.expectError(error.MissingField, p.Json.parseFromSliceOwned(Saved, t.allocator, missing));
+    }
 }

@@ -283,7 +283,9 @@ checks the frame against the typed retained collection and original definition;
 the iterator is derived from that collection, never separately supplied by a
 host. Each instruction/iteration uses its monotonically increasing step under the
 original invocation and transaction. Saved candidates freeze cumulative read
-usage with the successor environment. Stale completions refuse. A late body
+usage with the successor environment. Every persisted counter is mandatory; an
+absent counter or accounting object refuses decoding rather than resetting usage.
+Stale completions refuse. A late body
 refusal aborts all earlier writes and appends in that atomic block. Recovery,
 current-rights checks and common commit validation retain their existing owners.
 

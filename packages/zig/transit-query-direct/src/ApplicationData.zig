@@ -111,9 +111,11 @@ pub const SelectLimits = struct { requests: u64, scan_rows: u64, result_bytes: u
 /// Logical MANY reads share these counters for the entire invocation, including
 /// failure handling. Saved candidates freeze both their values and their usage.
 pub const SelectUsage = struct {
-    requests: u64 = 0,
-    scan_rows: u64 = 0,
-    result_bytes: u64 = 0,
+    requests: u64,
+    scan_rows: u64,
+    result_bytes: u64,
+    // Initialization is explicit; persisted records cannot acquire zero defaults.
+    pub const zero: @This() = .{ .requests = 0, .scan_rows = 0, .result_bytes = 0 };
     pub fn validate(self: SelectUsage, limits: SelectLimits) !void {
         if (self.requests > limits.requests or self.scan_rows > limits.scan_rows or self.result_bytes > limits.result_bytes) return error.QueryResultBudget;
     }
@@ -126,7 +128,7 @@ pub fn select(output: std.mem.Allocator, scratch: *std.heap.ArenaAllocator, driv
 }
 pub fn selectObserved(output: std.mem.Allocator, scratch: *std.heap.ArenaAllocator, driver: *a.Step, client: c.DirectTableClient, expected: c.DirectTableProtocol.Definition, snapshot: c.DirectTableProtocol.Snapshot, query: a.Select, limits: SelectLimits, cumulative: ?*SelectUsage) !Value {
     if (limits.requests < 4 or limits.scan_rows == 0 or limits.result_bytes == 0) return error.InvalidQueryBudget;
-    var local: SelectUsage = .{};
+    var local: SelectUsage = SelectUsage.zero;
     const usage = if (query.many != null) cumulative orelse &local else &local;
     try usage.validate(limits);
     const request_limit = limits.requests - usage.requests;
@@ -556,13 +558,13 @@ test "application native append freezes schema values and original log identity"
 test "application many accounting is cumulative and bounded ordering preserves duplicate payloads" {
     const t = std.testing;
     var collection: ManyRows = .{};
-    var usage: SelectUsage = .{};
+    var usage: SelectUsage = SelectUsage.zero;
     try collection.charge(&usage, 20, 11);
     try t.expectError(error.QueryResultBudget, collection.charge(&usage, 20, 10));
     try t.expectEqual(@as(u64, 11), usage.result_bytes);
     try collection.charge(&usage, 20, 9);
     try t.expectError(error.QueryResultBudget, collection.charge(&usage, 20, 1));
-    try t.expect(!(@as(SelectUsage, .{ .result_bytes = 19 })).follows(usage));
+    try t.expect(!(@as(SelectUsage, .{ .requests = 0, .scan_rows = 0, .result_bytes = 19 })).follows(usage));
     const row: Value = .{ .record = &.{.{ .name = "note", .value = .null }} };
     try t.expect(try ManyRows.ownedBytes(row) > @sizeOf(Value));
     collection.items[0] = .{ .key = 3, .row = row };
@@ -599,10 +601,10 @@ test "application many refuses exhausted cumulative read budgets before another 
     const query: a.Select = .{ .target = "items", .columns = &.{"id"}, .predicate = null, .many = .{ .bound = 3, .order = "id" } };
     // No native client exists here: a second small read must reject before
     // attempting I/O when the shared counter cannot fund its opening.
-    var consumed: SelectUsage = .{ .requests = 8 };
+    var consumed: SelectUsage = .{ .requests = 8, .scan_rows = 0, .result_bytes = 0 };
     try t.expectError(error.QueryPageBudget, selectObserved(t.allocator, &scratch, &driver, undefined, undefined, undefined, query, limits, &consumed));
     try t.expectEqual(@as(u64, 8), consumed.requests);
-    consumed = .{ .scan_rows = 4 };
+    consumed = .{ .requests = 0, .scan_rows = 4, .result_bytes = 0 };
     try t.expectError(error.QueryResultBudget, selectObserved(t.allocator, &scratch, &driver, undefined, undefined, undefined, query, limits, &consumed));
 }
 
@@ -616,7 +618,7 @@ test "application partial collection output releases every allocation on failure
                 .{ .id = 2, .name = "note", .type = .utf8, .nullable = true },
             }, .primary_key = &.{1} };
             var collection: ManyRows = .{};
-            var usage: SelectUsage = .{};
+            var usage: SelectUsage = SelectUsage.zero;
             try collection.charge(&usage, 4096, ManyRows.overhead);
             for ([_]i64{ 3, -1 }, 0..) |key, ordinal| {
                 const cells = try rowCells(output.allocator(), schema, &.{ .{ .integer = key }, .{ .text = "same" } });
@@ -631,4 +633,19 @@ test "application partial collection output releases every allocation on failure
     };
     try Case.run(std.testing.allocator);
     try std.testing.checkAllAllocationFailures(std.testing.allocator, Case.run, .{});
+}
+
+test "application many read accounting requires every persisted counter" {
+    const t = std.testing;
+    for ([_][]const u8{
+        "{}",
+        "{\"scan_rows\":0,\"result_bytes\":0}",
+        "{\"requests\":0,\"result_bytes\":0}",
+        "{\"requests\":0,\"scan_rows\":0}",
+    }) |missing| try t.expectError(error.MissingField, p.Json.parseFromSliceOwned(SelectUsage, t.allocator, missing));
+    const encoded = try p.Json.valueAlloc(t.allocator, SelectUsage.zero);
+    defer t.allocator.free(encoded);
+    const restored = try p.Json.parseFromSliceOwned(SelectUsage, t.allocator, encoded);
+    defer restored.deinit();
+    try t.expectEqualDeep(SelectUsage.zero, restored.value);
 }
