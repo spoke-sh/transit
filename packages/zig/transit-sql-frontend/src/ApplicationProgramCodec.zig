@@ -107,7 +107,7 @@ const Validator = struct {
             },
             .call => |call| {
                 if (self.iteration) switch (call.function) {
-                    .current_revision, .secret_current, .native_identity_allowed, .native_session_current, .native_binding_active => return error.UnsupportedProgramIteration,
+                    .current_revision, .secret, .secret_current, .native_identity_allowed, .native_session_current, .native_binding_active => return error.UnsupportedProgramIteration,
                     else => {},
                 };
                 try self.expressions(call.arguments, depth + 1);

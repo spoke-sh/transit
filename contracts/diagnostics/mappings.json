@@ -1266,6 +1266,14 @@
         "InvalidApplicationDeadline": {
           "code": "sql.invalid_application_deadline",
           "category": "binding"
+        },
+        "InvalidProgramCollection": {
+          "code": "sql.invalid_program_collection",
+          "category": "binding"
+        },
+        "UnsupportedProgramIteration": {
+          "code": "sql.unsupported_program_iteration",
+          "category": "unsupported"
         }
       }
     },
