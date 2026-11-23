@@ -12,6 +12,7 @@ pub const Action = union(enum) {
     mutate: struct { work: c.DirectQueueMutation.Request, payload: ?[]const u8 = null },
     operation: c.DirectQueueMutation.Request,
     page: @FieldType(wire.Request, "page"),
+    admit_effect: @FieldType(wire.Request, "admit_effect"),
     wait: @FieldType(wire.Request, "wait"),
     pub fn encode(self: Action, scratch: std.mem.Allocator) !wire.Request {
         return switch (self) {
@@ -20,18 +21,33 @@ pub const Action = union(enum) {
         };
     }
 };
-pub const Row = struct { lease: p.QueueRead.LeaseObservation, operation: p.DataLifecycle.Operation, execution: ?p.Transaction.Origin, ordinal: u32, visible_ms: u64, value: c.fuze.TableRow.Row };
+pub const Row = struct { row_sha256: [32]u8, lease: p.QueueRead.LeaseObservation, operation: p.DataLifecycle.Operation, execution: ?p.Transaction.Origin, ordinal: u32, visible_ms: u64, value: c.fuze.TableRow.Row };
 pub const Page = struct {
     source: c.DirectLogClient.Metadata,
     basis: p.QueueRead.Basis,
     rows: []const Row,
     cursor: p.QueueRead.Cursor,
     encoded_bytes: u32,
+    /// The host independently verifies this commitment at admission. Deriving
+    /// it from a response never makes caller-supplied provenance authoritative.
+    pub fn effectSource(self: Page, index: usize) !p.EffectAdmission.Source {
+        if (index >= self.rows.len) return error.InvalidEffectSource;
+        const row = self.rows[index];
+        const result: p.EffectAdmission.Source = .{
+            .record = .{ .target = self.cursor.receipt.claim.target, .operation = row.operation, .ordinal = row.ordinal },
+            .offset = row.lease.original.offset,
+            .execution = row.execution orelse return error.UnverifiedEffectIntent,
+            .row_sha256 = row.row_sha256,
+        };
+        try result.validate();
+        return result;
+    }
 };
 pub const Result = union(enum) {
     recovering: c.storage.QueuePartition.Recovery,
     cut: p.StreamQueue.Cut,
     current_time: p.QueueRead.TimeObservation,
+    effect_admission: @FieldType(wire.Result, "effect_admission"),
     operation: ?wire.Receipt,
     page: Page,
     timed_out: p.StreamQueue.Cut,
@@ -88,7 +104,9 @@ pub fn apply(output: *std.heap.ArenaAllocator, client: c.DirectTableClient, acti
                 _ = scratch.reset(.retain_capacity);
                 const bytes = try encoded.encoded.decode(scratch.allocator(), c.fuze.TableRow.max_bytes);
                 const decoded = try c.fuze.TableRow.decodeInto(output.allocator(), schema, bytes);
-                row.* = .{ .lease = encoded.lease, .operation = encoded.operation, .execution = encoded.execution, .ordinal = encoded.ordinal, .visible_ms = encoded.visible_ms, .value = decoded.row() };
+                var row_sha256: [32]u8 = undefined;
+                std.crypto.hash.sha2.Sha256.hash(bytes, &row_sha256, .{});
+                row.* = .{ .row_sha256 = row_sha256, .lease = encoded.lease, .operation = encoded.operation, .execution = encoded.execution, .ordinal = encoded.ordinal, .visible_ms = encoded.visible_ms, .value = decoded.row() };
             }
             break :blk .{ .page = .{ .source = .{ .declaration = page.source.declaration, .schema = schema }, .basis = page.basis, .rows = rows, .cursor = page.cursor, .encoded_bytes = page.encoded_bytes } };
         },

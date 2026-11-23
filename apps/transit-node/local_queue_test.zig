@@ -117,9 +117,14 @@ pub fn exercise(service: *Service, declaration: c.DirectLog.Definition, schema: 
     later.claim.operation.operation = 507;
     const empty = (try c.DirectQueueClient.apply(&output, caller, .{ .mutate = .{ .work = later } })).operation.?.claim;
     try t.expectEqual(@as(u32, 0), empty.rows);
-    clock.now = 1000;
+    // Visibility is decided by the authority's earliest clock bound, not how
+    // quickly a caller can commit a transaction and issue its next request.
+    clock.now = 304; // earliest_ms = 299, just before visible_ms = 300.
     try t.expectEqualDeep(empty, (try c.DirectQueueClient.apply(&output, caller, .{ .mutate = .{ .work = later } })).operation.?.claim);
     later.claim.operation.operation = 508;
+    try t.expectEqual(@as(u32, 0), (try c.DirectQueueClient.apply(&output, caller, .{ .mutate = .{ .work = later } })).operation.?.claim.rows);
+    clock.now = 305; // earliest_ms = 300, exactly at the visibility boundary.
+    later.claim.operation.operation = 509;
     const reassigned = (try c.DirectQueueClient.apply(&output, caller, .{ .mutate = .{ .work = later } })).operation.?.claim;
     try t.expectEqual(@as(u32, 1), reassigned.rows);
     clock.now = 2000;

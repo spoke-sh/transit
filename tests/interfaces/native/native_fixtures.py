@@ -81,6 +81,28 @@ def generated():
             case.update(vector(body, b'transit.request.v1\0'))
         results[FIXTURES / 'requests-v1.json'] = requests
 
+        # Independent canonical source commitments and signed native admission.
+        effect_scope = dict(realm=42, resource=9, catalog=2**64 - 1)
+        effect_object = dict(scope=effect_scope, branch=1, object=10)
+        effect_operation = dict(scope=effect_scope, principal=0, operation=2**64 - 2)
+        effect_source = dict(
+            record=dict(target=dict(definition=definition,
+                        interpretation=dict(object=effect_object, revision=1, digest=[1]*32), partition=0),
+                        operation=effect_operation, ordinal=0),
+            offset=7,
+            execution=dict(realm=42, pid=2, principal=0, generation=1, code=1, workload=None,
+                           transaction=dict(scope=effect_scope, principal=0, operation=99)),
+            row_sha256=[3]*32)
+        effect_request = dict(version=1, definition=definition, realm=42, principal=0, sequence=8,
+                              command=dict(admit_effect=dict(pid=2, generation=2, source=effect_source)))
+        effect_key = hashlib.sha256(b'transit.effect.row.v1' + compact(dict(
+            object=effect_object, partition=0, operation=effect_operation, ordinal=0))).digest()
+        effect_binding = hashlib.sha256(b'transit.effect.binding.v1' + compact(effect_source)).digest()
+        effect_digest = hashlib.sha256(b'transit.request.v1\0' + compact(effect_request)).digest()
+        results[FIXTURES / 'effect-admission-v1.json'] = dict(
+            request=effect_request, commitment=dict(key=list(effect_key), digest=list(effect_binding)),
+            request_digest=list(effect_digest), signature=key.sign(effect_digest), public_key=key.public)
+
         sdk_path = ROOT / 'tests/sdk/sdk-operations-v1.json'
         sdk = json.loads(sdk_path.read_text())
         assert sdk['seed_hex'] == '07' * 32

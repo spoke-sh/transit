@@ -12,6 +12,7 @@ pub const Diagnostic = @import("Diagnostic.zig");
 pub const Runtime = @import("Runtime.zig");
 pub const State = @import("State.zig");
 pub const Authorization = @import("Authorization.zig");
+pub const EffectAdmission = @import("EffectAdmission.zig");
 pub const Growth = @import("Growth.zig");
 pub const Inspection = Growth.Inspection;
 pub const Lifecycle = @import("Lifecycle.zig");
@@ -77,6 +78,7 @@ test {
     _ = Json;
     _ = Schema;
     _ = Growth;
+    _ = EffectAdmission;
     _ = Value;
     _ = QueuePredicate;
     _ = Blocks;
@@ -180,6 +182,11 @@ pub const ErrorCode = enum {
     DependencyBudgetExceeded,
     DependencyInUse,
     EffectCapacity,
+    EffectCollected,
+    EffectSourceConflict,
+    EffectAdmissionUnavailable,
+    InvalidEffectSource,
+    UnverifiedEffectIntent,
     Forbidden,
     FreshKeyRequired,
     HistoryPinned,

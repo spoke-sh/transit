@@ -376,3 +376,97 @@ Stored heads require the current definition, storage epoch and compaction cursor
 Page/block locations have one current 32-byte opaque definition. There is no
 preceding-format decoder or implied epoch for an old stored head. Configuration,
 provider placement and maintenance ledgers never authorize execution or expiry.
+
+## Committed Queue effect admission
+
+The installed direct Queue `admit_effect` operation accepts an original claim
+cursor and a signed native `admit_effect {pid, generation, source}` command. It
+admits an effect from an already committed, execution-fenced Queue row without a
+native actor turn. It performs no external I/O, ACK, claim-read release or
+connector completion. Database commit, native admission, attempt authorization,
+observation and application completion remain separate durable boundaries.
+
+`EffectAdmission.Source` binds the exact Queue definition and logical partition,
+append operation and row ordinal, offset, authenticated `Transaction.Origin`
+and SHA-256 of the complete canonical encoded row. Embedded direct catalog,
+object, operation, revision and offset values retain their full unsigned 64-bit
+contract; native PID/principal/generation limits remain unchanged. The opaque row must carry the
+connector's immutable request/capture commitment, endpoint and policy references,
+deadline and lineage. The kernel does not parse those application bytes.
+
+The row identity key is SHA-256 of `transit.effect.row.v1` followed immediately
+by canonical typed JSON of `{object, partition, operation, ordinal}` in that
+order. `object` is the stable Queue object, including its scope and branch;
+`partition` is its logical ordinal. The binding digest is SHA-256 of
+`transit.effect.binding.v1` followed immediately by canonical typed JSON of the
+complete `Source`, in declared field order. Changing a definition, offset,
+origin or row digest under the same identity conflicts; it cannot allocate a
+replacement effect. Hashing uses no implicit NUL terminator. The native effect's
+`payload` is the 32-byte binding digest and its `source` is `{key, digest}`.
+Native-turn effects retain `source = null` and their existing payload semantics.
+
+### Verification and current authority
+
+The native command endpoint rejects new admissions with
+`UnverifiedEffectIntent`. A client-supplied tuple, signature or claim receipt is
+not committed-source proof. The installed service reads exactly one row through
+the ordinary current-authorized Queue original-selection reader, which resolves
+the accepted claim and committed log batch. Missing execution provenance rejects.
+It compares all source fields and the row digest before invoking the privileged
+native admission seam with that source and the native head observed before the
+read. This in-process capability is never a wire field. A changed native head
+rejects with `Conflict`; a caller must repeat verification of its original work.
+The native conditional journal append fences changes after preparation as well.
+
+This trusts the installed storage/service composition and its authenticated
+transaction-origin owner. It does not establish honest connector computation,
+cryptographic proof against a compromised host, or remote execution. Core does
+not depend on catalog, Station or transport implementations.
+
+Queue acquire and payload read permissions remain current and independent of
+native execute/effect permissions. Fresh native admission requires both native
+permissions, the current owning principal and generation, and an executable
+process with its existing lifetime/dependency gates. Historical execution origin
+remains unchanged across replacement. Dispatch, observation and inspection keep
+their existing independent current grants. Returning the admitted effect also
+requires native `inspect`, checked before admission and after response buffering. A lease is scheduling state: an
+expired, renewed or ACKed original selection is usable for admission while its
+payload-read dependency and current rights remain valid. It grants no send right.
+
+### Original recovery and collection
+
+Admission atomically records a permanent `(pid, row key)` mapping, the native
+effect, its pending index and the caller's sequence/receipt. Repeated verified
+admission returns the mapped effect, including its existing attempt/phase, rather
+than creating another effect. Changed binding content reports
+`EffectSourceConflict`. A lost reply is uncertain: inspect `effect_admission
+{pid, key}` under current `inspect` permission or retry the exact saved signed
+command. An exact accepted command retry returns its original receipt without
+requiring a new source proof. A replacement may sign a new admission command
+with its current generation after recovering the original mapping.
+
+The signed `effect_admission` query returns the original effect or null if there
+is no mapping at its authority cut. If its terminal effect has been explicitly
+collected, it returns `EffectCollected`, never null. The permanent mapping is
+paged, survives effect/process collection, and prevents identity reuse. It is
+not a payload-retention pin. Default Queue retention remains unlimited; a caller
+must retain its original claim's payload-read dependency until its durable
+capture/outcome owner no longer needs those bytes. Admission does not silently
+release that dependency or authorize physical cleanup.
+
+Transactional effect observation updates native evidence without creating a
+legacy native mailbox input. A consumer must durably save the mapping and retain
+a discoverable pending entry before ACKing its scheduling input, then publish
+its own transactional completion. This admission operation does not provide that
+connector/capture runner. A terminal capture alone cannot override native
+`closed_unknown`, and a recorded attempt never authorizes another send.
+
+| Failure boundary | Recovery fact |
+| --- | --- |
+| Before database decision | No committed row is available to verify. |
+| Database committed, native admission absent | Retained original row can be verified and admitted under current rights. |
+| Native append accepted, reply lost | Original command receipt and row mapping recover the same effect. |
+| Owner or policy changes during verification | Native head/CAS rejects; repeat verification without replacing the source. |
+| Attempt authorized, worker or lease replaced | Mapping still exposes that attempt; ordinary dispatch rejects a second attempt. |
+| Observation accepted | Effect evidence changes; no native mailbox or implicit Queue ACK is created. |
+| Terminal effect collected | Permanent mapping reports collection and prohibits fresh admission. |

@@ -7837,6 +7837,8 @@
     "packages/zig/transit-catalog/src/DirectQueue.zig": {
       "errors": {
         "CatalogDenied": 2,
+        "EffectAdmissionUnavailable": 1,
+        "InvalidEffectSource": 1,
         "InvalidLogRecoveryBudget": 1,
         "InvalidQueuePayload": 1,
         "InvalidQueueReadBudget": 1,
@@ -7867,12 +7869,14 @@
           "operation",
           "cancel",
           "page",
-          "wait"
+          "wait",
+          "admit_effect"
         ],
         "Result": [
           "recovering",
           "cut",
           "current_time",
+          "effect_admission",
           "operation",
           "page",
           "timed_out"
@@ -7890,7 +7894,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 53,
+        "try": 56,
         "catch": 3
       },
       "imports": [
@@ -7901,9 +7905,11 @@
     "packages/zig/transit-catalog/src/DirectQueueClient.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
+        "InvalidEffectSource": 1,
         "InvalidQueueIntent": 1,
         "InvalidQueueResponse": 1,
-        "LogPayloadConflict": 1
+        "LogPayloadConflict": 1,
+        "UnverifiedEffectIntent": 1
       },
       "outcomes": {
         "Action": [
@@ -7912,12 +7918,14 @@
           "mutate",
           "operation",
           "page",
+          "admit_effect",
           "wait"
         ],
         "Result": [
           "recovering",
           "cut",
           "current_time",
+          "effect_admission",
           "operation",
           "page",
           "timed_out"
@@ -7926,6 +7934,7 @@
       "error_sets": {},
       "error_returns": {
         "Action.encode()": "<inferred>",
+        "Page.effectSource()": "<inferred>",
         "Saved.validate()": "<inferred>",
         "apply()": "<inferred>",
         "load()": "<inferred>",
@@ -7933,7 +7942,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 16,
+        "try": 17,
         "catch": 0
       },
       "imports": [
@@ -7957,7 +7966,7 @@
     },
     "packages/zig/transit-catalog/src/DirectQueueResponse.zig": {
       "errors": {
-        "InvalidQueueResponse": 13
+        "InvalidQueueResponse": 14
       },
       "outcomes": {},
       "error_sets": {},
@@ -7968,7 +7977,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 24,
+        "try": 26,
         "catch": 1
       },
       "imports": [
@@ -9085,7 +9094,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 32,
+        "try": 40,
         "catch": 1
       },
       "imports": [
@@ -21950,6 +21959,28 @@
         "std"
       ]
     },
+    "packages/zig/transit-protocol/src/EffectAdmission.zig": {
+      "errors": {
+        "InvalidEffectSource": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Request.validate()": "<inferred>",
+        "Source.commitment()": "<inferred>",
+        "Source.validate()": "<inferred>",
+        "hash()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 6,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-protocol/src/EffectDiagnostic.zig": {
       "errors": {
         "InvalidRead": 1
@@ -21975,13 +22006,13 @@
         "InvalidCounter": 1,
         "InvalidEnumTag": 3,
         "InvalidFailure": 4,
-        "InvalidRead": 78,
+        "InvalidRead": 81,
         "InvalidReadVersion": 7,
         "InvalidSequence": 1,
         "InvalidStateKey": 2,
         "InvalidStateView": 2,
         "RecordTooLarge": 1,
-        "WrongProtocolRealm": 2
+        "WrongProtocolRealm": 3
       },
       "outcomes": {
         "Capabilities.dependency_changes": [
@@ -22022,6 +22053,7 @@
           "expire_resource",
           "reclaim_resource",
           "deliver",
+          "admit_effect",
           "dispatch",
           "observe",
           "close_effect",
@@ -22052,7 +22084,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5\""
+          "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
         ],
         "Effect.phase": [
           "pending",
@@ -22109,6 +22141,7 @@
           "entries",
           "outputs",
           "effects",
+          "effect_admission",
           "read_version",
           "version_entries",
           "read_versions",
@@ -22142,6 +22175,7 @@
           "entries",
           "outputs",
           "effects",
+          "effect_admission",
           "read_version",
           "version_entries",
           "read_versions",
@@ -22192,7 +22226,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 63,
+        "try": 65,
         "catch": 2
       },
       "imports": [
@@ -23611,6 +23645,11 @@
           "DependencyBudgetExceeded",
           "DependencyInUse",
           "EffectCapacity",
+          "EffectCollected",
+          "EffectSourceConflict",
+          "EffectAdmissionUnavailable",
+          "InvalidEffectSource",
+          "UnverifiedEffectIntent",
           "Forbidden",
           "FreshKeyRequired",
           "HistoryPinned",
@@ -23713,6 +23752,7 @@
         "DocumentOperation.zig",
         "DocumentProfile.zig",
         "DocumentRead.zig",
+        "EffectAdmission.zig",
         "EffectDiagnostic.zig",
         "Growth.zig",
         "IndexLifecycle.zig",
@@ -43617,6 +43657,34 @@
         "transit_catalog"
       ]
     },
+    "packages/zig/transit-station/src/transactional/Effect.zig": {
+      "errors": {
+        "EffectSourceConflict": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidEffectSource": 3,
+        "InvalidQueueCursor": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Saved.admit()": "<inferred>",
+        "Saved.encode()": "<inferred>",
+        "Saved.inspect()": "<inferred>",
+        "Saved.load()": "<inferred>",
+        "Saved.validate()": "<inferred>",
+        "prepare()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 15,
+        "catch": 0
+      },
+      "imports": [
+        "Actor.zig",
+        "std",
+        "transit_catalog"
+      ]
+    },
     "packages/zig/transit-station/src/transactional/Envelope.zig": {
       "errors": {
         "EnvelopeTooLarge": 2,
@@ -44173,6 +44241,7 @@
       },
       "imports": [
         "Actor.zig",
+        "Effect.zig",
         "Envelope.zig",
         "Observer.zig",
         "Pool.zig",

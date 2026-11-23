@@ -108,9 +108,15 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`7344b5ed271c41ea371aaa6e61867b1a4d1f670e9a9176f96793835d8ead20a5`.
+`ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff`.
 
-This definition binds optional authority-fenced `Transaction.Origin` provenance
+This definition adds committed Queue effect admission, its permanent native
+source mapping, signed lookup and current-authorized installed verification.
+Transactional effect observations do not deliver legacy native mailbox inputs.
+Earlier native histories, stored requests and generated clients require their
+matching build; no decoder upgrade or data reset is implied.
+
+It also binds optional authority-fenced `Transaction.Origin` provenance
 on execution-guarded transactional Stream and Queue batch evidence (`LOGEVID1`)
 and row read surfaces (`DirectQueue.Row` and `DirectStream.Row`), while keeping
 direct non-transactional appends and unguarded transactions explicitly null. It

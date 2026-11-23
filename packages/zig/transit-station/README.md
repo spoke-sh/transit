@@ -155,6 +155,15 @@ public transactional Station API yet: effect dispatch, SDK migration and removal
 of the old persistence owners remain the
 [Milestone 6 handoff](../../../docs/roadmap/06-streams-queues-and-durable-runtime.md).
 
+The private `Effect` adapter prepares admission from an authenticated actor outbox
+page without a native turn. `Saved.encode`/`load` preserve the exact signed
+sequence, source and claim cursor; the consumer persists those bytes before
+`admit`. `inspect` uses current credentials to recover the permanent row-to-effect
+mapping after replacement or claim release. Neither method dispatches, ACKs or
+releases the source. The consumer must retain a discoverable pending record and
+source dependency until its capture/outcome owner can finish recovery. See the
+[admission contract](../../../contracts/TRANSIT_V1.md#committed-queue-effect-admission).
+
 ### Captured turn reads
 
 GenServer reuses up to 64 validated committed point reads within the same

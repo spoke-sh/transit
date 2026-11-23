@@ -118,4 +118,20 @@ assert 'definition' in payload_request['properties']['proof']['properties']['cla
 assert 'definition' in contract['$defs']['PayloadResponse']['required']
 principal = contract["$defs"]["Request"]["properties"]["principal"]
 assert principal["x-transit-bits"] == 64 and principal["maximum"] == 2**53 - 1
+import copy
+import jsonschema
+admission = json.loads((root / 'packages/zig/transit-protocol/src/fixtures/effect-admission-v1.json').read_text())['request']
+validator = jsonschema.Draft202012Validator(dict(contract, **{'$ref': '#/$defs/Request'}))
+validator.validate(admission)
+assert admission['command']['admit_effect']['source']['record']['operation']['operation'] > 2**53 - 1
+for field in ('record', 'offset', 'execution', 'row_sha256'):
+    invalid = copy.deepcopy(admission)
+    del invalid['command']['admit_effect']['source'][field]
+    assert not validator.is_valid(invalid), field
+invalid = copy.deepcopy(admission)
+invalid['principal'] = 2**53
+assert not validator.is_valid(invalid), 'native identities must retain their existing bound'
+invalid = copy.deepcopy(admission)
+invalid['command']['admit_effect']['source']['record']['target']['definition'] = '0' * 64
+assert not validator.is_valid(invalid), 'foreign Queue source definition'
 print("Native v1 JSON Schema matches the Zig contract.")
