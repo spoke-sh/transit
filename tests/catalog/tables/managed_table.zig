@@ -2030,7 +2030,84 @@ fn applicationExecution(client: c.DirectTableClient, published: q.ManagedApplica
     try t.expectEqual(@as(usize, 2), page.rows.len);
     for (page.rows, [_]i64{ 7, -8 }) |row, expected| try t.expectEqual(expected, row.value.cells[0].value.atom.signed);
     _ = try c.DirectStreamClient.apply(&output, client, .{ .mutate = .{ .work = .{ .release = .{ .target = target, .operation = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 733301 }, .read = consumed.handle() } } } });
+    try applicationManyBudgets(client, published.limits, &.{ published.resources[0], .table(table.value.result.lookup.?), .table(batch_metadata.value.result.lookup.?) }, metadata.definition.schema, role);
     try applicationSettleInvalidation(client, published.limits, &.{ published.resources[0], .table(table.value.result.lookup.?), policy_binding, .table(batch_metadata.value.result.lookup.?) }, metadata.definition.schema, role);
+}
+
+fn applicationManyBudgets(client: c.DirectTableClient, original_limits: q.ApplicationDeclaration.Limits, resources: []const q.ApplicationBinding, input_schema: q.fuze.TableSchema.Schema, role: u64) !void {
+    const p = c.protocol;
+    const T = c.DirectClientToken;
+    const modes = [_]enum { control, scan_rows, requests, result_bytes, cumulative }{ .control, .scan_rows, .requests, .result_bytes, .cumulative };
+    for (modes, 0..) |mode, ordinal| {
+        const operation: u64 = 739000 + ordinal * 100;
+        const item_id: i64 = 40 + @as(i64, @intCast(ordinal));
+        var limits = original_limits;
+        // The control establishes that one complete three-row collection fits
+        // this representation budget. A second read must share that budget,
+        // even when the first collection's lexical scope has ended.
+        limits.result_bytes = 800;
+        switch (mode) {
+            .control, .cumulative => {},
+            .scan_rows => limits.scan_rows = 2,
+            .requests => limits.requests = 4,
+            .result_bytes => limits.result_bytes = 1,
+        }
+        const source = try std.fmt.allocPrint(
+            client.allocator,
+            "CREATE DATAFLOW many_budget_{s} FROM QUEUE application_input AS event WHERE id = {d} AS BEGIN BEGIN ATOMIC {s} " ++
+                "IF TRUE THEN LET batch MANY(3) = SELECT id FROM application_batch ORDER BY id; END IF; {s} END; END;",
+            .{ @tagName(mode), item_id, if (mode == .control) "" else "INSERT INTO application_rows VALUES (event.id) ON CONFLICT (id) DO ASSERT SAME ROW;", if (mode == .cumulative) "LET again MANY(3) = SELECT id FROM application_batch ORDER BY id;" else "" },
+        );
+        defer client.allocator.free(source);
+        const declared = try q.ApplicationDeclaration.prepare(client.allocator, .{ .connection = client.connection, .namespace = 1, .object = operation, .operation = operation + 1, .source = source, .resources = resources, .limits = limits });
+        defer declared.deinit();
+        const value = declared.value;
+        const manager: q.ManagedApplication = .{ .client = client };
+        const owner: q.ApplicationInvocation = .{ .manager = manager };
+        var observed = try manager.publish(value);
+        for ([_]p.Dataflow.Command{ .authorize, .activate }, 0..) |command, index| {
+            const saved = try manager.prepareControl(value, .{ .definition = p.Growth.current_definition, .operation = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = operation + 2 + @as(u64, index) }, .target = try value.interpretation(client.allocator), .expected = observed.head.control, .command = command }, if (command == .authorize) role else null);
+            defer client.allocator.free(saved);
+            _ = try manager.applyControl(saved);
+            observed = try manager.inspect(value);
+        }
+        var output: std.heap.ArenaAllocator = .init(client.allocator);
+        defer output.deinit();
+        const append = try q.ApplicationData.prepareAppend(output.allocator(), client.connection, .{ .declaration = resources[0].value.log.declaration, .schema = input_schema }, operation + 10, .{ .kind = .queue, .target = "application_input", .values = &.{.{ .integer = item_id }} });
+        const payload = try append.payload.decode(output.allocator(), c.DirectTableProtocol.max_work_bytes);
+        for (0..8) |_| {
+            if (c.DirectQueueClient.apply(&output, client, .{ .mutate = .{ .work = .{ .enqueue = append.work.append }, .payload = payload } })) |_| break else |err| if (err != error.InvalidTableResponse) return err;
+        } else return error.QueueEnqueueIncomplete;
+        const token = (try owner.start(value, 0)).?;
+        var host: ApplicationHost = .{};
+        var complete = false;
+        for (0..200) |_| {
+            const recovered = q.ApplicationRecovery.step(manager, token, .{ .context = &host, .ready = q.ApplicationHost.requireReady, .bind = ApplicationHost.bind }) catch |err| {
+                if (err == error.InvalidTableResponse) continue;
+                return err;
+            };
+            if (recovered == .complete) {
+                const final = try owner.load((try T.inspect(client, token)).?);
+                defer final.deinit();
+                try t.expectEqual(.complete, final.value.execution.phase);
+                try t.expect(final.value.execution.acknowledged);
+                if (mode == .control) {
+                    try t.expect(final.value.execution.failure == null);
+                    try t.expect(final.value.execution.many_usage.scan_rows == 3);
+                } else try t.expectEqual(.budget, final.value.execution.failure.?.reason);
+                complete = true;
+                break;
+            }
+        }
+        try t.expect(complete);
+        observed = try manager.inspect(value);
+        try t.expect(observed.head.pending == null);
+        try t.expectEqual(@as(u64, @intFromBool(mode == .control)), observed.head.completed);
+        try t.expectEqual(@as(u64, @intFromBool(mode != .control)), observed.head.refused);
+        const lookup = try client.call(.{ .lookup = .{ .namespace = 1, .name = "application_rows" } });
+        defer lookup.deinit();
+        try t.expectEqual(@as(u64, 2), lookup.value.result.lookup.?.row_count);
+    }
 }
 
 fn applicationSettleInvalidation(client: c.DirectTableClient, limits: q.ApplicationDeclaration.Limits, resources: []const q.ApplicationBinding, input_schema: q.fuze.TableSchema.Schema, role: u64) !void {
