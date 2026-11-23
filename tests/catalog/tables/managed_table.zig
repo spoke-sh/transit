@@ -2030,7 +2030,7 @@ fn applicationExecution(client: c.DirectTableClient, published: q.ManagedApplica
     try t.expectEqual(@as(usize, 2), page.rows.len);
     for (page.rows, [_]i64{ 7, -8 }) |row, expected| try t.expectEqual(expected, row.value.cells[0].value.atom.signed);
     _ = try c.DirectStreamClient.apply(&output, client, .{ .mutate = .{ .work = .{ .release = .{ .target = target, .operation = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 733301 }, .read = consumed.handle() } } } });
-    try applicationSettleInvalidation(client, published.limits, &.{ published.resources[0], .table(table.value.result.lookup.?), policy_binding }, metadata.definition.schema, role);
+    try applicationSettleInvalidation(client, published.limits, &.{ published.resources[0], .table(table.value.result.lookup.?), policy_binding, .table(batch_metadata.value.result.lookup.?) }, metadata.definition.schema, role);
 }
 
 fn applicationSettleInvalidation(client: c.DirectTableClient, limits: q.ApplicationDeclaration.Limits, resources: []const q.ApplicationBinding, input_schema: q.fuze.TableSchema.Schema, role: u64) !void {
@@ -2042,10 +2042,11 @@ fn applicationSettleInvalidation(client: c.DirectTableClient, limits: q.Applicat
         .object = 733420,
         .operation = 733400,
         .source =
-        \\CREATE DATAFLOW application_settle_invalidation FROM QUEUE application_input AS event WHERE id = 5 OR id = 6 OR id = 10 AS BEGIN
+        \\CREATE DATAFLOW application_settle_invalidation FROM QUEUE application_input AS event WHERE id = 5 OR id = 6 OR id = 10 OR id = 11 AS BEGIN
         \\  BEGIN ATOMIC
         \\    LET policy = SELECT * FROM application_policy WHERE id = 1;
         \\    REQUIRE policy.enabled ELSE 'Disabled';
+        \\    LET batch MANY(3) = SELECT id FROM application_batch ORDER BY id;
         \\    INSERT INTO application_rows VALUES (event.id) ON CONFLICT (id) DO ASSERT SAME ROW;
         \\  END;
         \\ON FAILURE failure
@@ -2072,14 +2073,15 @@ fn applicationSettleInvalidation(client: c.DirectTableClient, limits: q.Applicat
     defer output.deinit();
 
     var host: ApplicationHost = .{};
-    for ([_]enum { lease_fenced, table_conflict, ack_log_conflict }{ .lease_fenced, .table_conflict, .ack_log_conflict }, [_]i64{ 5, 6, 10 }, 0..) |mode, item_id, round| {
+    for ([_]enum { lease_fenced, table_conflict, ack_log_conflict, many_basis_conflict }{ .lease_fenced, .table_conflict, .ack_log_conflict, .many_basis_conflict }, [_]i64{ 5, 6, 10, 11 }, 0..) |mode, item_id, round| {
         _ = output.reset(.retain_capacity);
         if (mode == .ack_log_conflict) {
             for (0..8) |_| {
                 if (dml(client, "UPDATE application_policy SET enabled = TRUE WHERE id = 1", 733411)) |_| break else |err| if (err != error.InvalidTableResponse) return err;
             } else return error.PolicyRestoreIncomplete;
         }
-        const append = try q.ApplicationData.prepareAppend(output.allocator(), client.connection, .{ .declaration = resources[0].value.log.declaration, .schema = input_schema }, 733405 + round, .{ .kind = .queue, .target = "application_input", .values = &.{.{ .integer = item_id }} });
+        const append_operation = if (mode == .many_basis_conflict) 733414 else 733405 + round;
+        const append = try q.ApplicationData.prepareAppend(output.allocator(), client.connection, .{ .declaration = resources[0].value.log.declaration, .schema = input_schema }, append_operation, .{ .kind = .queue, .target = "application_input", .values = &.{.{ .integer = item_id }} });
         const payload = try append.payload.decode(output.allocator(), c.DirectTableProtocol.max_work_bytes);
         for (0..8) |_| {
             if (c.DirectQueueClient.apply(&output, client, .{ .mutate = .{ .work = .{ .enqueue = append.work.append }, .payload = payload } })) |_| break else |err| if (err != error.InvalidTableResponse) return err;
@@ -2118,6 +2120,14 @@ fn applicationSettleInvalidation(client: c.DirectTableClient, limits: q.Applicat
                         for (0..8) |_| {
                             if (dml(client, "UPDATE application_policy SET enabled = FALSE WHERE id = 1", 733410)) |_| break else |err| if (err != error.InvalidTableResponse) return err;
                         } else return error.PolicyConflictIncomplete;
+                    },
+                    .many_basis_conflict => {
+                        // Change the Table observed by MANY after all body
+                        // writes have staged. The captured collection carries
+                        // no permission to commit against a changed basis.
+                        for (0..8) |_| {
+                            if (dml(client, "DELETE FROM application_batch WHERE id = 2", 733413)) |_| break else |err| if (err != error.InvalidTableResponse) return err;
+                        } else return error.ManyBasisConflictIncomplete;
                     },
                     .ack_log_conflict => {
                         const extra = try q.ApplicationData.prepareAppend(output.allocator(), client.connection, .{ .declaration = resources[0].value.log.declaration, .schema = input_schema }, 733412, .{ .kind = .queue, .target = "application_input", .values = &.{.{ .integer = 99 }} });
@@ -2178,6 +2188,7 @@ fn applicationSettleInvalidation(client: c.DirectTableClient, limits: q.Applicat
             .lease_fenced => 2,
             .table_conflict => 3,
             .ack_log_conflict => 4,
+            .many_basis_conflict => 5,
         }), lookup.value.result.lookup.?.row_count);
     }
 }
