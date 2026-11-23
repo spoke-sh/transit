@@ -259,7 +259,7 @@ immutable present row and disappears at loop exit. Body LETs are recreated for
 each row and disappear before the next. One loop level is allowed; sequential
 loops may consume the same collection. Guards, branches, scalar/ROW expressions
 and existing transactional mutations are admitted. Nested loops, reads (including
-native observation functions), effects, responses and handoffs refuse even in
+database observation functions such as `CURRENT_REVISION`), effects, responses and handoffs refuse even in
 unselected arms. Collection bindings disappear when their atomic scope ends.
 
 Request, scanned-row and result-byte counters are cumulative across MANY reads

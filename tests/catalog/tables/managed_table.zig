@@ -2055,11 +2055,13 @@ fn applicationManyBudgets(client: c.DirectTableClient, original_limits: q.Applic
         const source = try std.fmt.allocPrint(
             client.allocator,
             "CREATE DATAFLOW many_budget_{s} FROM QUEUE application_input AS event WHERE id = {d} AS BEGIN BEGIN ATOMIC {s} " ++
-                "IF TRUE THEN LET batch MANY(3) = SELECT id FROM application_batch ORDER BY id; END IF; {s} END; END;",
-            .{ @tagName(mode), item_id, if (mode == .control) "" else "INSERT INTO application_rows VALUES (event.id) ON CONFLICT (id) DO ASSERT SAME ROW;", if (mode == .cumulative) "LET again MANY(3) = SELECT id FROM application_batch ORDER BY id;" else "" },
+                "IF TRUE THEN LET batch MANY(3) = SELECT id FROM application_batch {s}ORDER BY id; END IF; {s} END; END;",
+            .{ @tagName(mode), item_id, if (mode == .control) "" else "INSERT INTO application_rows VALUES (event.id) ON CONFLICT (id) DO ASSERT SAME ROW;", if (mode == .scan_rows) "WHERE id = 3 " else "", if (mode == .cumulative) "LET again MANY(3) = SELECT id FROM application_batch ORDER BY id;" else "" },
         );
         defer client.allocator.free(source);
-        const declared = try q.ApplicationDeclaration.prepare(client.allocator, .{ .connection = client.connection, .namespace = 1, .object = operation, .operation = operation + 1, .source = source, .resources = resources, .limits = limits });
+        // Bind exactly the resources used by this declaration. The control has
+        // no staged mutation; the selective scan still charges nonmatching rows.
+        const declared = try q.ApplicationDeclaration.prepare(client.allocator, .{ .connection = client.connection, .namespace = 1, .object = operation, .operation = operation + 1, .source = source, .resources = if (mode == .control) &.{ resources[0], resources[2] } else resources, .limits = limits });
         defer declared.deinit();
         const value = declared.value;
         const manager: q.ManagedApplication = .{ .client = client };
