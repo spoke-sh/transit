@@ -105,6 +105,11 @@ pub fn prepare(self: *Self) !Prepared {
                 },
                 .require => |require| if (try evaluation.condition(try evaluation.evaluate(require.condition))) .{ .advance = .{ .instruction = entry.id } } else .{ .refused = require.refusal },
                 .conditional => |choice| .{ .advance = .{ .branch = .{ .id = entry.id, .yes = try evaluation.condition(try evaluation.evaluate(choice.condition)) } } },
+                .iteration => |loop| blk: {
+                    const collection = try self.environment.lookup(self.index, loop.collection);
+                    if (collection != .rows or collection.rows.len > a.max_collection_rows) return error.InvalidProgramCollection;
+                    break :blk .{ .advance = .{ .iteration = .{ .id = entry.id, .length = @intCast(collection.rows.len) } } };
+                },
                 .put => |put| .{ .put = .{ .target_schema = put.target_schema, .target = put.target, .key = try evaluation.evaluate(put.key), .value = try evaluation.evaluate(put.value), .fields = try self.fields(put.fields), .expected = switch (put.expected) {
                     .absent => .absent,
                     .revision => |revision| .{ .revision = try evaluation.evaluate(revision) },

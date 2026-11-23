@@ -11,6 +11,7 @@ location: ?*sql.Location,
 nodes: u16 = 0,
 depth: usize = 0,
 atomic_depth: usize = 0,
+iteration_depth: usize = 0,
 
 pub fn parse(allocator: std.mem.Allocator, source: []const u8, location: ?*sql.Location) !a.Owned {
     if (location) |value| value.* = .{};
@@ -301,7 +302,26 @@ fn effect(self: *Self) !a.Effect {
 }
 fn binding(self: *Self) !a.Binding {
     const variable = try self.name();
+    const bound: ?u8 = if (try self.takeWord("MANY")) blk: {
+        if (self.atomic_depth == 0 or self.iteration_depth != 0) return error.UnsupportedProgramIteration;
+        try self.require('(');
+        if (self.token == null or self.token.?.kind != .number) return error.InvalidProgramCollection;
+        const count = std.fmt.parseInt(u8, self.raw(), 10) catch return error.InvalidProgramCollection;
+        if (count == 0 or count > a.max_collection_rows) return error.InvalidProgramCollection;
+        try self.advance();
+        self.require(')') catch return error.InvalidProgramCollection;
+        break :blk count;
+    } else null;
     try self.require('=');
+    if (bound) |count| {
+        var query = try self.select();
+        try self.requireWord("ORDER");
+        try self.requireWord("BY");
+        query.many = .{ .bound = count, .order = try self.name() };
+        _ = try self.takeWord("ASC");
+        return .{ .name = variable, .value = .{ .select = query } };
+    }
+    if (self.iteration_depth != 0 and (self.word("GET") or self.word("SELECT") or self.word("EXECUTE"))) return error.UnsupportedProgramIteration;
     const value: @FieldType(a.Binding, "value") = if (try self.takeWord("GET")) blk: {
         try self.requireWord("FROM");
         const target = try self.qualifiedName();
@@ -391,6 +411,18 @@ fn instruction(self: *Self) anyerror!a.Instruction {
         try self.requireWord("END");
         try self.requireWord("IF");
         break :blk .{ .conditional = .{ .condition = condition, .yes = yes, .no = no } };
+    } else if (try self.takeWord("FOR")) blk: {
+        if (self.atomic_depth == 0 or self.iteration_depth != 0) return error.UnsupportedProgramIteration;
+        const name_ = try self.name();
+        try self.requireWord("IN");
+        const collection = try self.name();
+        try self.requireWord("DO");
+        self.iteration_depth += 1;
+        defer self.iteration_depth -= 1;
+        const body = try self.block();
+        try self.requireWord("END");
+        try self.requireWord("FOR");
+        break :blk .{ .iteration = .{ .name = name_, .collection = collection, .body = body } };
     } else if (try self.takeWord("PUT")) blk: {
         if (self.atomic_depth == 0) return error.MutationOutsideAtomic;
         try self.requireWord("INTO");

@@ -72,6 +72,7 @@ const Validator = struct {
     count: usize = 0,
     nodes: u16,
     text_bytes: usize = 0,
+    iteration: bool = false,
 
     fn text(self: *Validator, value: []const u8, identifier: bool) !void {
         if (!std.unicode.utf8ValidateSlice(value) or std.mem.indexOfAny(u8, value, &.{ 0, 1 }) != null or
@@ -104,7 +105,13 @@ const Validator = struct {
                 try self.expression(field.base, depth + 1);
                 try self.text(field.name, true);
             },
-            .call => |call| try self.expressions(call.arguments, depth + 1),
+            .call => |call| {
+                if (self.iteration) switch (call.function) {
+                    .current_revision, .secret_current, .native_identity_allowed, .native_session_current, .native_binding_active => return error.UnsupportedProgramIteration,
+                    else => {},
+                };
+                try self.expressions(call.arguments, depth + 1);
+            },
             .unary => |unary| try self.expression(unary.operand, depth + 1),
             .binary => |binary| {
                 try self.expression(binary.left, depth + 1);
@@ -128,6 +135,10 @@ const Validator = struct {
         }
     }
     fn select(self: *Validator, query: a.Select, depth: usize) !void {
+        if (query.many) |many| {
+            if (many.bound == 0 or many.bound > a.max_collection_rows) return error.InvalidProgramCollection;
+            try self.text(many.order, true);
+        }
         if (query.schema) |schema| try self.text(schema, true);
         try self.text(query.target, true);
         if (query.columns) |columns| {
@@ -143,6 +154,7 @@ const Validator = struct {
             switch (instruction.value) {
                 .let => |binding| {
                     try self.text(binding.name, true);
+                    if (self.iteration and binding.value != .expression) return error.UnsupportedProgramIteration;
                     switch (binding.value) {
                         .expression => |value| try self.expression(value, depth + 1),
                         .get => |get| {
@@ -150,7 +162,10 @@ const Validator = struct {
                             try self.text(get.target, true);
                             try self.expression(get.key, depth + 1);
                         },
-                        .select => |query| try self.select(query, depth + 1),
+                        .select => |query| {
+                            if (query.many != null and !atomic) return error.UnsupportedProgramIteration;
+                            try self.select(query, depth + 1);
+                        },
                         .effect => |effect| {
                             if (atomic) return error.EffectInsideAtomic;
                             if (effect.sink_schema) |schema| try self.text(schema, true);
@@ -176,6 +191,14 @@ const Validator = struct {
                     try self.block(choice.yes, depth + 1, atomic);
                     try self.block(choice.no, depth + 1, atomic);
                 },
+                .iteration => |loop| {
+                    if (!atomic or self.iteration) return error.UnsupportedProgramIteration;
+                    try self.text(loop.name, true);
+                    try self.text(loop.collection, true);
+                    self.iteration = true;
+                    defer self.iteration = false;
+                    try self.block(loop.body, depth + 1, atomic);
+                },
                 .put => |put| {
                     if (!atomic) return error.MutationOutsideAtomic;
                     if (put.target_schema) |schema| try self.text(schema, true);
@@ -200,6 +223,7 @@ const Validator = struct {
                     try self.expressions(append.values, depth + 1);
                 },
                 .handoff => |handoff| {
+                    if (self.iteration) return error.UnsupportedProgramIteration;
                     if (!atomic) return error.MutationOutsideAtomic;
                     if (handoff.queue_schema) |schema| try self.text(schema, true);
                     try self.text(handoff.queue, true);
@@ -207,6 +231,7 @@ const Validator = struct {
                     try self.expression(handoff.effect, depth + 1);
                 },
                 .respond => |response| {
+                    if (self.iteration) return error.UnsupportedProgramIteration;
                     if (response.status < 200 or response.status > 599) return error.InvalidProgramStatus;
                     try self.expression(response.request, depth + 1);
                     if (response.guard) |guard| try self.expression(guard, depth + 1);
@@ -225,6 +250,7 @@ const Validator = struct {
                     }
                 },
                 .respond_error => |response| {
+                    if (self.iteration) return error.UnsupportedProgramIteration;
                     try self.expression(response.request, depth + 1);
                     try self.text(response.failure, true);
                     try self.text(response.profile, true);
@@ -250,6 +276,7 @@ pub fn validate(program: a.Program) !void {
     switch (program.body) {
         .instructions => |body| try self.block(body, 1, false),
         .page => |page| {
+            if (page.select.many != null) return error.UnsupportedProgramIteration;
             try self.select(page.select, 1);
             try self.expression(page.request, 1);
             try self.text(page.profile, true);
@@ -260,6 +287,67 @@ pub fn validate(program: a.Program) !void {
         try self.block(failure.instructions, 1, false);
     }
     if (self.count != program.nodes) return error.InvalidProgramNode;
+    _ = try executionLimit(program);
+}
+
+/// A declaration's execution bound includes every possible loop iteration and
+/// scope transition. Resolve immutable collection aliases without inventing
+/// rows. Call only after structural validation (as validate does above).
+pub fn executionLimit(program: a.Program) !u32 {
+    const Work = struct {
+        const Symbol = struct { name: []const u8, bound: u8 };
+        symbols: [a.max_nodes]Symbol = undefined,
+        count: usize = 0,
+        iterates: bool = false,
+        expanded_nodes: u32,
+        declared_nodes: u16,
+        fn lookup(self: *const @This(), name: []const u8) u8 {
+            for (self.symbols[0..self.count]) |symbol| if (std.mem.eql(u8, name, symbol.name)) return symbol.bound;
+            return 0;
+        }
+        fn block(self: *@This(), body: []const a.Instruction) anyerror!u32 {
+            const start = self.count;
+            defer self.count = start;
+            var steps: u32 = 0;
+            for (body) |instruction| {
+                const cost: u32 = switch (instruction.value) {
+                    .let => |binding| blk: {
+                        const bound = switch (binding.value) {
+                            .select => |query| if (query.many) |many| many.bound else 0,
+                            .expression => |value| if (value.value == .name) self.lookup(value.value.name) else 0,
+                            else => 0,
+                        };
+                        if (self.count == self.symbols.len) return error.ProgramTooComplex;
+                        self.symbols[self.count] = .{ .name = binding.name, .bound = bound };
+                        self.count += 1;
+                        break :blk 1;
+                    },
+                    .atomic => |nested| 2 + try self.block(nested),
+                    .conditional => |branch| 2 + @max(try self.block(branch.yes), try self.block(branch.no)),
+                    .iteration => |loop| blk: {
+                        const bound = self.lookup(loop.collection);
+                        if (bound == 0) return error.InvalidProgramCollection;
+                        self.iterates = true;
+                        var nodes: Validator = .{ .nodes = self.declared_nodes, .iteration = true };
+                        try nodes.block(loop.body, 1, true);
+                        self.expanded_nodes += @as(u32, bound - 1) * @as(u32, @intCast(nodes.count));
+                        if (self.expanded_nodes > a.max_execution_steps) return error.ProgramTooComplex;
+                        break :blk 1 + @as(u32, bound) * (1 + try self.block(loop.body));
+                    },
+                    else => 1,
+                };
+                steps += cost;
+                if (steps > a.max_execution_steps) return error.ProgramTooComplex;
+            }
+            return steps;
+        }
+    };
+    var work: Work = .{ .expanded_nodes = program.nodes, .declared_nodes = program.nodes };
+    var steps: u32 = 2; // root exit and a possible refusal transition
+    if (program.body == .instructions) steps += try work.block(program.body.instructions);
+    if (program.failure) |failure| steps += 1 + try work.block(failure.instructions);
+    if (steps > a.max_execution_steps) return error.ProgramTooComplex;
+    return if (work.iterates) steps else @as(u32, program.nodes) * 3;
 }
 
 test "retained application programs preserve exact instructions and reject changed boundaries" {
@@ -311,4 +399,29 @@ test "retained application trees release partial ownership on allocation failure
         }
     };
     try std.testing.checkAllAllocationFailures(std.testing.allocator, Fixture.run, .{});
+}
+
+test "bounded many syntax and complete expanded work limits reject unsupported loops" {
+    const t = std.testing;
+    for ([_][]const u8{ "0", "65", "256", "-1", "1.5", "request.limit" }) |bound| {
+        const source = try std.fmt.allocPrint(t.allocator, "CREATE DATAFLOW act FROM QUEUE jobs AS request AS BEGIN BEGIN ATOMIC LET batch MANY({s}) = SELECT id FROM items ORDER BY id; END; END;", .{bound});
+        defer t.allocator.free(source);
+        try t.expectError(error.InvalidProgramCollection, a.parse(t.allocator, source, null));
+    }
+    for ([_][]const u8{ "LET found = SELECT id FROM items;", "FOR other IN batch DO REQUIRE TRUE ELSE 'Bad'; END FOR;" }) |body| {
+        const source = try std.fmt.allocPrint(t.allocator, "CREATE DATAFLOW act FROM QUEUE jobs AS request AS BEGIN BEGIN ATOMIC LET batch MANY(2) = SELECT id FROM items ORDER BY id; FOR item IN batch DO {s} END FOR; END; END;", .{body});
+        defer t.allocator.free(source);
+        try t.expectError(error.UnsupportedProgramIteration, a.parse(t.allocator, source, null));
+    }
+    var observed = try a.parse(t.allocator, "CREATE DATAFLOW act FROM QUEUE jobs AS request AS BEGIN BEGIN ATOMIC LET batch MANY(2) = SELECT id FROM items ORDER BY id; FOR item IN batch DO LET rev = CURRENT_REVISION(items, item.id); END FOR; END; END;", null);
+    defer observed.deinit();
+    try t.expectError(error.UnsupportedProgramIteration, validate(observed.program));
+    var body: std.Io.Writer.Allocating = .init(t.allocator);
+    defer body.deinit();
+    for (0..100) |_| try body.writer.writeAll("REQUIRE TRUE ELSE 'No'; ");
+    const source = try std.fmt.allocPrint(t.allocator, "CREATE DATAFLOW act FROM QUEUE jobs AS request AS BEGIN BEGIN ATOMIC LET batch MANY(64) = SELECT id FROM items ORDER BY id; FOR item IN batch DO {s} END FOR; END; END;", .{body.written()});
+    defer t.allocator.free(source);
+    var large = try a.parse(t.allocator, source, null);
+    defer large.deinit();
+    try t.expectError(error.ProgramTooComplex, validate(large.program));
 }

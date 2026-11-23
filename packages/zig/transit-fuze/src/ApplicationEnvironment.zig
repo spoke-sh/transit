@@ -71,6 +71,11 @@ pub fn validate(index: a.Cursor.Index, bound: a.Types.Bound, binding_digest: [32
     }
     if (cursor.phase == .body and index.program.body == .page) return;
     for (cursor.checkpoint().frames) |frame| {
+        if (frame.branch == .iteration) {
+            const loop = (try index.instruction(frame.owner)).value.iteration;
+            const collection = try lookupBinding(index, value.values[0..at], loop.collection);
+            if (collection != .rows or collection.rows.len != frame.length or frame.ordinal >= collection.rows.len) return error.InvalidProgramNode;
+        }
         const block = try index.block(frame);
         for (block[0..frame.index]) |entry| if (entry.value == .let) {
             if (at >= value.values.len or value.values[at].instruction != entry.id) return error.InvalidProgramNode;
@@ -102,7 +107,17 @@ pub fn decode(allocator: std.mem.Allocator, index: a.Cursor.Index, bound: a.Type
     return .{ .arena = arena, .snapshot = value };
 }
 pub fn lookup(self: *const Self, index: a.Cursor.Index, name: []const u8) !Value {
-    for (self.values.items) |entry| {
+    for (self.cursor.checkpoint().frames) |frame| if (frame.branch == .iteration) {
+        const loop = (try index.instruction(frame.owner)).value.iteration;
+        if (!std.mem.eql(u8, name, loop.name)) continue;
+        const collection = try lookupBinding(index, self.values.items, loop.collection);
+        if (collection != .rows or collection.rows.len != frame.length or frame.ordinal >= collection.rows.len) return error.InvalidProgramNode;
+        return collection.rows[frame.ordinal];
+    };
+    return lookupBinding(index, self.values.items, name);
+}
+fn lookupBinding(index: a.Cursor.Index, values: []const Binding, name: []const u8) !Value {
+    for (values) |entry| {
         const candidate = switch (entry.instruction) {
             0 => index.program.input,
             failure_id => (index.program.failure orelse return error.InvalidProgramNode).name,
@@ -124,6 +139,12 @@ pub fn bind(self: *Self, index: a.Cursor.Index, bound: a.Types.Bound, expected_s
 }
 /// A LET must use bind so an observation cannot advance without its value.
 pub fn advance(self: *Self, index: a.Cursor.Index, expected_step: u32, action: a.Cursor.Advance) !void {
+    if (action == .iteration) {
+        const entry = try index.instruction(action.iteration.id);
+        if (entry.value != .iteration) return error.InvalidProgramNode;
+        const collection = try lookupBinding(index, self.values.items, entry.value.iteration.collection);
+        if (collection != .rows or collection.rows.len != action.iteration.length) return error.InvalidProgramNode;
+    }
     var next = self.cursor;
     try next.advance(index, expected_step, action);
     const count = try next.bindings(index);
@@ -241,4 +262,67 @@ test "application failure after verified abort drops locals without resetting in
     try t.expectEqual(@as(u32, 5), env.cursor.step);
     try t.expectEqual(@as(usize, 0), env.values.items.len);
     try validate(index, bound, @splat(1), env.snapshot(@splat(1)));
+}
+
+test "application bounded iteration restores ordinal and drops locals without repeating steps" {
+    const t = std.testing;
+    const Case = struct {
+        fn run(allocator: std.mem.Allocator) !void {
+            var program = try a.parse(allocator, "CREATE DATAFLOW act FROM QUEUE jobs AS request AS BEGIN BEGIN ATOMIC LET batch MANY(2) = SELECT id FROM items ORDER BY id; FOR item IN batch DO LET local = item.id; END FOR; END; END;", null);
+            defer program.deinit();
+            var bound = try a.Types.bind(allocator, program.program, &.{
+                .{ .name = "jobs", .kind = .queue, .fields = &.{} },
+                .{ .name = "items", .kind = .table, .fields = &.{.{ .name = "id", .value = .{ .kind = .integer } }}, .key = &.{"id"}, .many_order = "id" },
+            }, null);
+            defer bound.deinit();
+            var index = try a.Cursor.Index.init(allocator, &program.program);
+            defer index.deinit();
+            var env = try init(allocator, index, bound, .{ .record = &.{} });
+            defer env.deinit();
+            const block = (try env.cursor.next(index)).enter_atomic.id;
+            try env.advance(index, 0, .{ .enter_atomic = block });
+            const read = (try env.cursor.next(index)).instruction.id;
+            const rows = [_]Value{
+                .{ .record = &.{.{ .name = "id", .value = .{ .integer = -3 } }} },
+                .{ .record = &.{.{ .name = "id", .value = .{ .integer = 9 } }} },
+            };
+            try env.bind(index, bound, 1, read, .{ .rows = &rows });
+            const loop = (try env.cursor.next(index)).instruction.id;
+            try t.expectError(error.InvalidProgramNode, env.advance(index, 2, .{ .iteration = .{ .id = loop, .length = 1 } }));
+            try env.advance(index, 2, .{ .iteration = .{ .id = loop, .length = 2 } });
+            try t.expectEqual(@as(i64, -3), (try (try env.lookup(index, "item")).field("id")).integer);
+            const local = (try env.cursor.next(index)).instruction.id;
+            try env.bind(index, bound, 3, local, .{ .integer = -3 });
+            try env.advance(index, 4, .{ .leave = loop });
+            try t.expectError(error.UnknownProgramVariable, env.lookup(index, "local"));
+            try t.expectError(error.InvalidProgramNode, env.advance(index, 4, .{ .leave = loop }));
+            const digest: [32]u8 = @splat(9);
+            const encoded = try encode(allocator, index, bound, digest, env.snapshot(digest));
+            defer allocator.free(encoded);
+            var saved = try decode(allocator, index, bound, digest, encoded);
+            defer saved.deinit();
+            var restored = try restore(allocator, index, bound, digest, saved.snapshot);
+            defer restored.deinit();
+            try t.expectEqual(@as(i64, 9), (try (try restored.lookup(index, "item")).field("id")).integer);
+            try restored.bind(index, bound, 5, local, .{ .integer = 9 });
+            try restored.advance(index, 6, .{ .leave = loop });
+            try t.expectError(error.UnknownProgramVariable, restored.lookup(index, "item"));
+            try restored.advance(index, 7, .{ .leave = block });
+            try t.expectError(error.UnknownProgramVariable, restored.lookup(index, "batch"));
+            try restored.advance(index, 8, .{ .leave = 0 });
+            try t.expectEqual(.complete, restored.cursor.phase);
+            try validate(index, bound, digest, restored.snapshot(digest));
+            // A valid cursor position alone cannot fabricate rows or its length.
+            var forged = saved.snapshot;
+            const frames = try allocator.dupe(a.Cursor.Frame, forged.cursor.frames);
+            defer allocator.free(frames);
+            forged.cursor.frames = frames;
+            frames[2].length = 1;
+            try t.expectError(error.InvalidProgramNode, validate(index, bound, digest, forged));
+            frames[2].length = 3;
+            try t.expectError(error.InvalidProgramNode, validate(index, bound, digest, forged));
+        }
+    };
+    try Case.run(t.allocator);
+    try t.checkAllAllocationFailures(t.allocator, Case.run, .{});
 }
