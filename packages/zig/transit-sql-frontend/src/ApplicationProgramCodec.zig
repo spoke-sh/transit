@@ -73,6 +73,7 @@ const Validator = struct {
     nodes: u16,
     text_bytes: usize = 0,
     iteration: bool = false,
+    bounded_predicate: bool = false,
 
     fn text(self: *Validator, value: []const u8, identifier: bool) !void {
         if (!std.unicode.utf8ValidateSlice(value) or std.mem.indexOfAny(u8, value, &.{ 0, 1 }) != null or
@@ -106,7 +107,7 @@ const Validator = struct {
                 try self.text(field.name, true);
             },
             .call => |call| {
-                if (self.iteration) switch (call.function) {
+                if (self.iteration or self.bounded_predicate) switch (call.function) {
                     .current_revision, .secret, .secret_current, .native_identity_allowed, .native_session_current, .native_binding_active => return error.UnsupportedProgramIteration,
                     else => {},
                 };
@@ -145,7 +146,12 @@ const Validator = struct {
             if (columns.len == 0 or columns.len > a.max_arguments) return error.ProgramTooComplex;
             for (columns) |name| try self.text(name, true);
         }
-        if (query.predicate) |predicate| try self.expression(predicate, depth);
+        if (query.predicate) |predicate| {
+            const previous = self.bounded_predicate;
+            self.bounded_predicate = query.many != null;
+            defer self.bounded_predicate = previous;
+            try self.expression(predicate, depth);
+        }
     }
     fn block(self: *Validator, instructions: []const a.Instruction, depth: usize, atomic: bool) anyerror!void {
         if (depth > a.max_depth or instructions.len > a.max_nodes) return error.ProgramTooComplex;
@@ -424,4 +430,22 @@ test "bounded many syntax and complete expanded work limits reject unsupported l
     var large = try a.parse(t.allocator, source, null);
     defer large.deinit();
     try t.expectError(error.ProgramTooComplex, validate(large.program));
+}
+
+test "bounded selection predicates cannot hide uncharged database observations" {
+    const t = std.testing;
+    for ([_][]const u8{
+        "CURRENT_REVISION(items, 1) IS NULL",
+        "FALSE AND CURRENT_REVISION(items, 1) IS NULL",
+        "SECRET_CURRENT(SECRET('key'))",
+    }) |predicate| {
+        const source = try std.fmt.allocPrint(t.allocator, "CREATE DATAFLOW act FROM QUEUE jobs AS request AS BEGIN BEGIN ATOMIC LET batch MANY(2) = SELECT id FROM items WHERE {s} ORDER BY id; END; END;", .{predicate});
+        defer t.allocator.free(source);
+        var parsed = try a.parse(t.allocator, source, null);
+        defer parsed.deinit();
+        try t.expectError(error.UnsupportedProgramIteration, validate(parsed.program));
+    }
+    var allowed = try a.parse(t.allocator, "CREATE DATAFLOW act FROM QUEUE jobs AS request AS BEGIN BEGIN ATOMIC LET batch MANY(2) = SELECT id FROM items WHERE id > 0 AND id = request.id ORDER BY id; END; END;", null);
+    defer allowed.deinit();
+    try validate(allowed.program);
 }

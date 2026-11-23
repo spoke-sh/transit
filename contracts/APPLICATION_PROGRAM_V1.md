@@ -241,7 +241,10 @@ conditional values. A bare immutable alias is permitted within the same scope.
 The source must be a public Table with one non-null BIGINT primary key. Its exact
 key name must appear after `ORDER BY`, optionally followed by `ASC`. Other key
 types, Documents, compound keys, descending orders, joins and aggregates refuse.
-Native schema binding records this exact key descriptor. Selection scans the
+Native schema binding records this exact key descriptor. Predicates use row
+fields, existing bindings and scalar expressions; database observation functions
+refuse, including in unselected expression arms. The scan-row budget bounds
+repeated predicate evaluation, without hidden native requests. Selection scans the
 caller's existing serializable workspace once, retaining its original read guard.
 At most N rows are retained, then sorted by the signed BIGINT key. Negative keys
 sort before zero and positive keys; duplicate non-key values remain distinct.
