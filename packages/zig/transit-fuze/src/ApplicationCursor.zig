@@ -11,8 +11,9 @@ pub const Frame = struct {
     index: u16,
     /// Bindings present on scope entry. Terminal completion releases all locals.
     environment: u16,
-    ordinal: u8 = 0,
-    length: u8 = 0,
+    // These remain mandatory when a snapshot is embedded in a native candidate.
+    ordinal: u8,
+    length: u8,
 };
 pub const Phase = enum { body, failure, complete };
 pub const Checkpoint = struct { phase: Phase, step: u32, frames: []const Frame };
@@ -103,7 +104,7 @@ step: u32,
 
 pub fn initial() Self {
     var result: Self = .{ .count = 1, .phase = .body, .step = 0 };
-    result.frames[0] = .{ .owner = 0, .branch = .body, .index = 0, .environment = 1 };
+    result.frames[0] = .{ .owner = 0, .branch = .body, .index = 0, .environment = 1, .ordinal = 0, .length = 0 };
     return result;
 }
 pub fn checkpoint(self: *const Self) Checkpoint {
@@ -221,7 +222,7 @@ fn enter(self: *Self, index: Index, id: a.Id, branch: Branch) !void {
     if (self.count == self.frames.len) return error.InvalidProgramNode;
     const environment = try self.bindings(index);
     self.frames[self.count - 1].index += 1;
-    self.frames[self.count] = .{ .owner = id, .branch = branch, .index = 0, .environment = environment };
+    self.frames[self.count] = .{ .owner = id, .branch = branch, .index = 0, .environment = environment, .ordinal = 0, .length = 0 };
     self.count += 1;
 }
 /// The caller must first resolve pending native work, including any common
@@ -242,7 +243,7 @@ pub fn refuse(self: *Self, index: Index, expected_step: u32, atomic_aborted: boo
     self.step += 1;
     self.count = if (handler) 1 else 0;
     self.phase = if (handler) .failure else .complete;
-    if (handler) self.frames[0] = .{ .owner = 0, .branch = .failure, .index = 0, .environment = 2 };
+    if (handler) self.frames[0] = .{ .owner = 0, .branch = .failure, .index = 0, .environment = 2, .ordinal = 0, .length = 0 };
 }
 
 test "application cursor restores exact branches and refuses early atomic exit or stale completions" {
@@ -297,4 +298,23 @@ test "application cursor failure starts with only original input and cannot rest
     cursor = try restore(index, cursor.checkpoint());
     try t.expectEqualStrings("Refused", (try cursor.next(index)).instruction.value.require.refusal);
     try t.expectError(error.InvalidProgramNode, cursor.fail(index, cursor.step));
+}
+
+test "application iterator frames cannot omit their persisted position" {
+    const t = std.testing;
+    const p = @import("transit_protocol");
+    const frame: Frame = .{ .owner = 7, .branch = .iteration, .index = 0, .environment = 2, .ordinal = 1, .length = 3 };
+    const encoded = try p.Json.valueAlloc(t.allocator, frame);
+    defer t.allocator.free(encoded);
+    const restored = try p.Json.parseFromSliceOwned(Frame, t.allocator, encoded);
+    defer restored.deinit();
+    try t.expectEqualDeep(frame, restored.value);
+    for ([_][]const u8{ "ordinal", "length" }) |field| {
+        var tree = try std.json.parseFromSlice(std.json.Value, t.allocator, encoded, .{});
+        defer tree.deinit();
+        try t.expect(tree.value.object.swapRemove(field));
+        const missing = try p.Json.valueAlloc(t.allocator, tree.value);
+        defer t.allocator.free(missing);
+        try t.expectError(error.MissingField, p.Json.parseFromSliceOwned(Frame, t.allocator, missing));
+    }
 }

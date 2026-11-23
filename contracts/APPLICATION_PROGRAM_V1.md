@@ -278,7 +278,8 @@ behind a single loop instruction. Native transaction statement limits
 remain unchanged. `QueryResultBudget`, `QueryPageBudget` and transaction budget
 refusals never produce a partial success.
 
-Continuation frames retain the collection length and current ordinal. Restore
+Continuation frames require explicit collection length and current ordinal,
+including when nested in saved candidates; absent fields refuse decoding. Restore
 checks the frame against the typed retained collection and original definition;
 the iterator is derived from that collection, never separately supplied by a
 host. Each instruction/iteration uses its monotonically increasing step under the
