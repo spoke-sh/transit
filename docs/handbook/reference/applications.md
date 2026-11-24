@@ -134,7 +134,10 @@ It never truncates. Empty results execute no body; a present NULL field remains
 NULL. Duplicate non-key payloads remain distinct rows. A later body refusal
 rolls back earlier outputs and mutations. Read before entering the loop: its
 body cannot contain more reads, nested loops, effects or response handoffs.
-These restrictions also apply to expanded helpers. The
+These restrictions also apply to expanded helpers. MANY predicates can use row
+fields, scalar expressions and existing bindings. Database observations such as
+`CURRENT_REVISION` and `SECRET_CURRENT` are refused, including in unselected
+branches. The
 [ordered-program contract](../../../contracts/APPLICATION_PROGRAM_V1.md#bounded-many-row-reads-and-iteration)
 defines cumulative read budgets, the 12,288-step expanded work ceiling, retained
 continuations and exact failure order. Current authority and transaction

@@ -9,6 +9,97 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Bounded atomic Table results and iteration — 2026-11-23
+
+At source `d65f7c656c8e311806132ca894059b43b52051ee`, native applications can
+select a complete bounded Table result and iterate its rows inside the caller's
+atomic transaction. The [public profile](../../handbook/reference/applications.md)
+and [ordered-program contract](../../../contracts/APPLICATION_PROGRAM_V1.md#bounded-many-row-reads-and-iteration)
+define the admitted key order, bounds, observations and failure precedence. The
+current definition is
+`dd6352c075f480dabbc2d1349cc79c9a5c85687ecafd33055d6a2d56f28251d0`.
+The shared frontend archive and generated contracts, fixtures and SDK resources
+use this definition together; the compiled-case protocol is unchanged.
+
+The [managed application fixture](../../../tests/catalog/tables/managed_table.zig)
+executes shuffled input rows in ascending key order and rolls back earlier writes
+and appends on a late body refusal. Cumulative requests, scanned rows and result
+bytes survive recovered invocations; selective scans charge nonmatching rows,
+and changed read bases refuse at commit. The enclosing installed schedule passes
+its 17 lost replies, three native process kills/restarts and cancellation-after-commit
+race. All physical
+workspaces finish with zero retained bytes. Board computation checks repeat the
+managed schedule with their independent reader, metadata and identity assertions.
+
+The independently authored installed SQL journey in
+[`server_managed_tables.py`](../../../tests/interfaces/installation/server_managed_tables.py)
+passes empty, one, several, exact-bound and excess-bound selections, NULL fields,
+ordered duplicate payloads, late rollback and process restart. Its enclosing
+installation schedule also checks retirement. This journey exercises SQL without
+transitc. The separate compiler qualification compares emitted SQL with its own
+handwritten oracle and must not be inferred from this native pass.
+
+Component tests cover partial-allocation failures, immutable collection values,
+lexical iterator bindings, empty loops, first ordered refusal, forged iterator
+lengths and stale completions. Saved cumulative counters and iterator positions
+are mandatory; missing fields refuse instead of acquiring zero defaults.
+Database-observation calls in MANY predicates, including unselected branches,
+and hidden reads in loop bodies are refused before execution. Existing singleton
+reads retain their original semantics.
+
+Clean qualification keeps the tested sources distinct:
+
+| Clean lane | Committed source | Outcome |
+| --- | --- | --- |
+| `core` | `ff7386ac665fb23891d36b096ff25dc10bdaac9f` | 28/28 tasks passed, including 20 contract checks, 783 grammar cases, 49 standalone package builds, SQL wire contracts, runtime packaging, Station, authorization and caller checks |
+| `installation-ui` | `d65f7c656c8e311806132ca894059b43b52051ee` | 24/24 tasks passed, including the new managed/SQL journeys, application test host, server SQL types, Board checks, strict handbook and installed browser proofs |
+| `storage-query` | `d65f7c656c8e311806132ca894059b43b52051ee` | 32/32 tasks passed, including state/mixed transactions, Station recovery, Table/KV, query publication and the 139-resource catalog restart proof |
+| All four SDK lanes (`sdks`) | `d65f7c656c8e311806132ca894059b43b52051ee` | 16/16 tasks passed, including interoperability, faults and every language suite |
+
+The retained local clean reports and source/toolchain metadata are under
+`.cache/ci/clean/ff7386ac665f-transit-ci-pp0e5cww` (`core`),
+`.cache/ci/clean/d65f7c656c8e-transit-ci-axrjlwom` (`installation-ui`),
+`.cache/ci/clean/d65f7c656c8e-transit-ci-hhdmn9sz` (`storage-query`) and
+`.cache/ci/clean/d65f7c656c8e-transit-ci-7xdsz6ql` (`sdks`). Their `*.meta.json`
+records identify clean source, locked toolchains, exact expected tasks and
+completion; sibling task reports retain each outcome and diagnostic digest.
+These are selected affected lanes, not a full clean release campaign.
+
+The complete console gate also passes at `d65f7c656` in the pinned
+`ci-experience` shell. Its five fresh statement installations record Document,
+KV and Stream write metrics of 88/93/90 ms, peak PSS of 1,243,001,856 bytes and
+memory growth of 1.0955; every latency and memory budget passes. This local result
+uses the ordinary OS cache and records the shared host's 48 logical CPUs. It does
+not establish a performance improvement over a matched earlier build.
+
+The raw startup and five statement transcripts are retained with their report in
+`.cache/bounded-many/console-latency-final`. All six identify clean source and
+binary revision `d65f7c656c8e311806132ca894059b43b52051ee`, with executable SHA-256
+`23c079e4cf847821180ba295d317c6f6e129cf9c39ecb0d39cbf745edd21c865`.
+The report hashes to
+`bb8f37ffdfefdb8287436f8bb9a915d1c35873e653e419aebd5f1f35f6224930`;
+the unchanged budget file hashes to
+`d3fcbdc583e6e445d9c840aa7e51b91712597242aa28bc13e0b51d7fe8f3db67`.
+The [gate owner](../../../tests/performance/console/gate.py) checks raw coverage,
+source identities, values, cleanup and the frozen budgets. The 71 fast checks
+and generated-binding check also pass at this source.
+
+The first clean core attempt at `735e0f4a1` stopped on a grammar descriptor
+containing the previous definition. `7ce191a43` refreshes it and adds an explicit
+prior-definition refusal case; all 783 grammar cases then pass. The later clean
+installation attempt at `ff7386ac6` passed Board and handbook checks, then failed
+on stale TypeScript validator digests. `d65f7c656` regenerates those two files.
+The owning Node check and the complete corrected installation lane pass. The
+runtime/frontend code is unchanged between the successful core revision and
+`d65f7c656`. Earlier interrupted clean attempts remain incomplete evidence, and
+the original failing records remain retained under their tested identities.
+
+These checks qualify the bounded local native profile and selected existing
+caller/recovery surfaces. They do not establish arbitrary relational iteration,
+nested loops, five-state cells, effects across loop suspension, distributed
+provider execution or physical power-loss recovery. No timeout, durability,
+authority or resource limit was relaxed.
+
 ## Batched actor turns, claim-read closure and collection pressure — 2026-11-18
 
 At committed source `8dc5df3e1d88f527add7e02755658dacb909665b` (shared definition
