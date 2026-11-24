@@ -4,25 +4,25 @@
     "version": 1,
     "channel": "nightly",
     "base_version": "0.0.1",
-    "release": "0.0.1-nightly.20261121.gaa52980ad93b",
-    "tag": "nightly-20261121-gaa52980ad93b",
-    "source_revision": "aa52980ad93b5e32bee2c543c9f82bc3ab4f162a",
-    "source_date_epoch": 1795228878,
-    "date": "20261121",
+    "release": "0.0.1-nightly.20261124.g6201f4d5ffc5",
+    "tag": "nightly-20261124-g6201f4d5ffc5",
+    "source_revision": "6201f4d5ffc5b1849888b396cc75503f10f073f2",
+    "source_date_epoch": 1795456506,
+    "date": "20261124",
     "package_versions": {
-      "python": "0.0.1.dev20261121+gaa52980ad93b",
-      "node": "0.0.1-nightly.20261121.gaa52980ad93b",
-      "rust": "0.0.1-nightly.20261121.gaa52980ad93b",
-      "ruby": "0.0.1.nightly.20261121.gaa52980ad93b",
-      "c": "0.0.1-nightly.20261121.gaa52980ad93b",
-      "java": "0.0.1-nightly.20261121.gaa52980ad93b",
-      "dotnet": "0.0.1-nightly.20261121.gaa52980ad93b",
-      "beam": "0.0.1-nightly.20261121.gaa52980ad93b",
-      "go": "0.0.1-nightly.20261121.gaa52980ad93b",
-      "zig": "0.0.1-dev.gaa52980ad93b"
+      "python": "0.0.1.dev20261124+g6201f4d5ffc5",
+      "node": "0.0.1-nightly.20261124.g6201f4d5ffc5",
+      "rust": "0.0.1-nightly.20261124.g6201f4d5ffc5",
+      "ruby": "0.0.1.nightly.20261124.g6201f4d5ffc5",
+      "c": "0.0.1-nightly.20261124.g6201f4d5ffc5",
+      "java": "0.0.1-nightly.20261124.g6201f4d5ffc5",
+      "dotnet": "0.0.1-nightly.20261124.g6201f4d5ffc5",
+      "beam": "0.0.1-nightly.20261124.g6201f4d5ffc5",
+      "go": "0.0.1-nightly.20261124.g6201f4d5ffc5",
+      "zig": "0.0.1-dev.g6201f4d5ffc5"
     }
   },
-  "manifest_sha256": "16c345aab9e8347225e18279d4eb55cfc3defacd1e60422b81282629c4e269d6",
-  "checksums_sha256": "b4216317d6e7018b0b93da1b4de4099fe4902c04efd255914c169cd287cfe3d9",
-  "workflow_run": 44918710728
+  "manifest_sha256": "db4ff628a757699454b5b40e6f50f39119ca2268defb230a8f81403110d8af1f",
+  "checksums_sha256": "4f58a2841a2723fd72213ad588c4e149bdb3df19237738e00edc75506573f0aa",
+  "workflow_run": 45464289345
 }
