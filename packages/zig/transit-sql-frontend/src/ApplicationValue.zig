@@ -20,6 +20,7 @@ pub const Value = union(enum) {
     duration: i64,
     json: []const u8,
     record: []const Field,
+    rows: []const Value,
     secret: struct { reference: Reference, revision: []const u8 },
     protected_json: Reference,
     capability: Reference,
@@ -83,6 +84,13 @@ pub const Value = union(enum) {
             if (self.record.len > a.max_arguments + 1) return error.ProgramTooComplex;
             for (self.record) |entry| try entry.value.publicDepth(depth + 1);
         }
+        if (self == .rows) {
+            if (self.rows.len > a.max_collection_rows) return error.ProgramTooComplex;
+            for (self.rows) |row| {
+                if (row != .record) return error.ProgramTypeMismatch;
+                try row.publicDepth(depth + 1);
+            }
+        }
     }
     pub fn field(self: Value, name: []const u8) !Value {
         if (self == .null) return .null;
@@ -106,6 +114,14 @@ pub const Value = union(enum) {
         }
         if (self.kind() != expected.kind or self.protected() != expected.protected) return error.ProgramTypeMismatch;
         switch (self) {
+            .rows => |rows| {
+                if (expected.bound == 0 or expected.bound > a.max_collection_rows or rows.len > expected.bound or expected.nullable) return error.InvalidProgramCollection;
+                for (rows) |row| {
+                    if (row != .record) return error.ProgramTypeMismatch;
+                    try row.validateDepth(.{ .kind = .record, .fields = expected.fields }, depth + 1, bytes);
+                    try row.publicDepth(depth + 1);
+                }
+            },
             .text, .json => |text| {
                 if (!std.unicode.utf8ValidateSlice(text)) return error.InvalidSqlEncoding;
                 bytes.* = try std.math.add(usize, bytes.*, text.len);
@@ -222,4 +238,24 @@ test "application values retain protected handles without admitting ordinary per
     try t.expectError(error.ProgramTypeMismatch, projected.validate(.{ .kind = .text }));
     try t.expectError(error.ProtectedProgramValue, (Value{ .capability = .{ .id = @splat(4) } }).public());
     try t.expectEqual(@as(Value, .null), try (@as(Value, .null)).field("missing"));
+}
+
+test "bounded many values distinguish empty and NULL and reject forged row shapes" {
+    const t = std.testing;
+    const descriptor: a.Types.Value = .{ .kind = .rows, .bound = 2, .fields = &.{.{ .name = "note", .value = .{ .kind = .text, .nullable = true } }} };
+    const empty: Value = .{ .rows = &.{} };
+    const row: Value = .{ .record = &.{.{ .name = "note", .value = .null }} };
+    try empty.validate(descriptor);
+    try (Value{ .rows = &.{row} }).validate(descriptor);
+    try t.expectError(error.ProgramNullabilityMismatch, (@as(Value, .null)).validate(descriptor));
+    try t.expectError(error.ProgramTypeMismatch, row.validate(descriptor));
+    try t.expectError(error.ProgramTypeMismatch, (Value{ .rows = &.{.null} }).validate(descriptor));
+    try t.expectError(error.InvalidProgramCollection, (Value{ .rows = &.{ row, row, row } }).validate(descriptor));
+    const wire = try p.Json.valueAlloc(t.allocator, Value{ .rows = &.{ row, row } });
+    defer t.allocator.free(wire);
+    const parsed = try p.Json.parseFromSliceOwned(Value, t.allocator, wire);
+    defer parsed.deinit();
+    try parsed.value.validate(descriptor);
+    try t.expectEqual(@as(usize, 2), parsed.value.rows.len);
+    try t.expectEqual(.null, (try parsed.value.rows[0].field("note")));
 }

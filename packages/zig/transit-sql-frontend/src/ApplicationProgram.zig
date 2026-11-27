@@ -14,6 +14,8 @@ pub const max_source_bytes = @import("SqlInput.zig").max_source_bytes;
 pub const max_nodes = 4096;
 pub const max_depth = 32;
 pub const max_arguments = 64;
+pub const max_collection_rows = 64;
+pub const max_execution_steps = max_nodes * 3;
 pub const Span = struct { start: u32, end: u32 };
 pub const Id = u16;
 
@@ -78,6 +80,7 @@ pub const Select = struct {
     target: []const u8,
     columns: ?[]const []const u8,
     predicate: ?*Expression,
+    many: ?struct { bound: u8, order: []const u8 } = null,
 };
 pub const Effect = struct {
     sink_schema: ?[]const u8 = null,
@@ -110,6 +113,7 @@ pub const Instruction = struct {
         require: struct { condition: *Expression, refusal: []const u8 },
         atomic: []const Instruction,
         conditional: struct { condition: *Expression, yes: []const Instruction, no: []const Instruction },
+        iteration: struct { name: []const u8, collection: []const u8, body: []const Instruction },
         put: struct {
             target_schema: ?[]const u8 = null,
             target: []const u8,

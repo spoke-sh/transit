@@ -214,6 +214,89 @@ scope. Failure inside `ON FAILURE` terminates that handler without recursively
 entering it again. These local checks do not replace durable fencing,
 transaction recovery or dispatch authorization.
 
+## Bounded many-row reads and iteration
+
+The installed public-data profile accepts a complete, bounded Table read inside
+an atomic block:
+
+```sql
+BEGIN ATOMIC
+  LET selected MANY(16) = SELECT id, note FROM items
+    WHERE batch = request.batch ORDER BY id;
+  FOR item IN selected DO
+    REQUIRE item.id > 0 ELSE 'InvalidItem';
+    PRODUCE INTO processed VALUES (item.id, item.note);
+  END FOR;
+END;
+```
+
+`MANY(N)` requires a literal integer from 1 through 64. It asserts a bound on the
+complete matching result; it is never truncation. An empty result is a non-null
+empty collection. Each element is a present record with the projection's exact
+names, types and nullable fields. SQL NULL remains a field value. Missing,
+type-error and conflict cells retain the existing native conversion refusals.
+Collections cannot be resource fields, scalar function arguments, ROW members or
+conditional values. A bare immutable alias is permitted within the same scope.
+
+The source must be a public Table with one non-null BIGINT primary key. Its exact
+key name must appear after `ORDER BY`, optionally followed by `ASC`. Other key
+types, Documents, compound keys, descending orders, joins and aggregates refuse.
+Native schema binding records this exact key descriptor. Predicates use row
+fields, existing bindings and scalar expressions; database observation functions
+refuse, including in unselected expression arms. The scan-row budget bounds
+repeated predicate evaluation, without hidden native requests. Selection scans the
+caller's existing serializable workspace once, retaining its original read guard.
+At most N rows are retained, then sorted by the signed BIGINT key. Negative keys
+sort before zero and positive keys; duplicate non-key values remain distinct.
+The sort has a fixed maximum of 64 entries and never sees an unbounded result.
+
+Failure order is schema/cell validation and full row conversion, predicate
+evaluation, matching-row cap, selected-representation byte cap, final basis
+validation, then ordered iteration. The `(N + 1)`th matching row refuses with
+`ProgramCardinalityMismatch` before any loop instruction. No partial collection
+is published. Existing unannotated singleton reads retain their failure order.
+
+`FOR row IN collection DO ... END FOR` consumes the frozen collection, without
+reevaluating its SELECT. It requires the same atomic scope. The iterator is an
+immutable present row and disappears at loop exit. Body LETs are recreated for
+each row and disappear before the next. One loop level is allowed; sequential
+loops may consume the same collection. Guards, branches, scalar/ROW expressions
+and existing transactional mutations are admitted. Nested loops, reads (including
+database observation functions such as `CURRENT_REVISION`), effects, responses and handoffs refuse even in
+unselected arms. Collection bindings disappear when their atomic scope ends.
+
+Request, scanned-row and result-byte counters are cumulative across MANY reads
+in an invocation, including its failure handler. The metadata lookup charges two
+requests; scan opening and each later native call charge both credential and
+request exchanges. Nonmatching rows count toward scan limits. The result budget
+charges the greater of each row's encoded representation (plus its separator)
+and its owned value/field/name/payload representation, plus the collection
+container. Checks precede retaining each row. Existing continuation and total
+retained-byte limits additionally cover saved environments, including repeated
+checkpoints. Work cannot reset per row: the expanded program's worst-case cursor
+steps, including every declared iteration, branch scope and failure continuation,
+must fit the existing 12,288-step ceiling. Expanded instruction and expression
+node visits independently fit the same ceiling; a large expression cannot hide
+behind a single loop instruction. Native transaction statement limits
+remain unchanged. `QueryResultBudget`, `QueryPageBudget` and transaction budget
+refusals never produce a partial success.
+
+Continuation frames require explicit collection length and current ordinal,
+including when nested in saved candidates; absent fields refuse decoding. Restore
+checks the frame against the typed retained collection and original definition;
+the iterator is derived from that collection, never separately supplied by a
+host. Each instruction/iteration uses its monotonically increasing step under the
+original invocation and transaction. Saved candidates freeze cumulative read
+usage with the successor environment. Every persisted counter is mandatory; an
+absent counter or accounting object refuses decoding rather than resetting usage.
+Stale completions refuse. A late body
+refusal aborts all earlier writes and appends in that atomic block. Recovery,
+current-rights checks and common commit validation retain their existing owners.
+
+The collection descriptor, iteration frames and cumulative counters change the
+current pre-1.0 definition fingerprint. Older declarations and continuations
+cannot be read under this definition; no implicit old-profile fallback exists.
+
 ## Protected values
 
 Secret bytes, protected JSON and response/request capabilities have separate
@@ -455,8 +538,8 @@ The implemented typed execution owner retains proposed successors as guarded
 owned records and publishes checkpoints as transaction-owned records. Native
 statement completion is provisional until its common decision commits. Original
 input, proposals and checkpoints count against the declaration's retained-byte
-budget; each payload also has a separate continuation limit. Read request budgets
-apply per SELECT, while native transaction limits bound participant expansion,
+budget; each payload also has a separate continuation limit. Singleton read budgets
+apply per SELECT; MANY counters accumulate across the invocation. Native transaction limits bound participant expansion,
 statement count and work. Transport retries do not receive new operation IDs.
 
 The first committed boundary ACKs the exact original input lease. Subsequent

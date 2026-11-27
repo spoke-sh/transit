@@ -63,6 +63,7 @@ pub const Work = struct {
         try p.Authorization.roleId(self.executor_role);
         if (self.executor_role == 0) return error.InvalidAuthorizationRole;
         try self.execution.validate();
+        try self.execution.many_usage.validate(.{ .requests = value.limits.requests, .scan_rows = value.limits.scan_rows, .result_bytes = value.limits.result_bytes });
         if (self.execution.retained_bytes > value.limits.retained_bytes) return error.InvalidDirectRecord;
         if (self.execution.effect) |effect| {
             var connection = value.connection;
@@ -75,7 +76,7 @@ pub const Work = struct {
                 try effect.descriptor.request.requireSame(self.execution.candidate orelse return error.InvalidApplicationEffect);
         }
         if (self.execution.transaction) |transaction| {
-            if (transaction.step > @as(u32, value.program.nodes) * 3 or transaction.sequence > value.limits.transaction.statements) return error.InvalidDirectRecord;
+            if (transaction.step > try q.fuze.ApplicationProgram.Codec.executionLimit(value.program) or transaction.sequence > value.limits.transaction.statements) return error.InvalidDirectRecord;
             var connection = value.connection;
             connection.role = self.executor_role;
             if (!std.meta.eql(transaction.key.connection, connection)) return error.InvalidDirectRecord;

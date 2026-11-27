@@ -5,12 +5,13 @@ const std = @import("std");
 const ast = @import("ApplicationProgram.zig");
 const sql = @import("Sql.zig");
 pub const NativeDependencies = std.EnumSet(@import("NativeBinding.zig").Kind);
-pub const Kind = enum { null, boolean, integer, text, binary, uuid, timestamp, duration, json, record, secret, protected_json, capability, failure };
+pub const Kind = enum { null, boolean, integer, text, binary, uuid, timestamp, duration, json, record, rows, secret, protected_json, capability, failure };
 pub const Value = struct {
     kind: Kind,
     nullable: bool = false,
     protected: bool = false,
     fields: []const Field = &.{},
+    bound: u8 = 0,
     pub fn public(kind: Kind) Value {
         return .{ .kind = kind };
     }
@@ -29,6 +30,8 @@ pub const Resource = struct {
     kind: enum { table, document, kv, stream, queue, sink },
     fields: []const Field,
     key: []const []const u8 = &.{},
+    /// Exact single ascending BIGINT key, derived from the native schema.
+    many_order: ?[]const u8 = null,
 };
 
 pub fn sameResource(a_schema: ?[]const u8, a_name: []const u8, b_schema: ?[]const u8, b_name: []const u8) bool {
@@ -119,6 +122,7 @@ pub fn bindForAnalysis(allocator: std.mem.Allocator, program: ast.Program, resou
         target.schema = if (source.schema) |s| try arena.allocator().dupe(u8, s) else null;
         target.name = try arena.allocator().dupe(u8, source.name);
         target.fields = try cloneFields(arena.allocator(), source.fields, 0);
+        target.many_order = if (source.many_order) |name| try arena.allocator().dupe(u8, name) else null;
     }
     var self: Self = .{ .allocator = arena.allocator(), .resources = owned_resources, .values = values, .location = location };
     for (resources, 0..) |candidate, index| for (resources[0..index]) |prior| {
@@ -128,7 +132,7 @@ pub fn bindForAnalysis(allocator: std.mem.Allocator, program: ast.Program, resou
     try self.define(program.input, .{ .kind = .record, .fields = queue.fields });
     for (parameters) |parameter| {
         if (parameter.name.len == 0 or parameter.name.len > 255 or std.mem.indexOfScalar(u8, parameter.name, 0) != null) return error.InvalidColumnName;
-        if (parameter.value.protected or parameter.value.fields.len != 0) return error.ProgramTypeMismatch;
+        if (parameter.value.protected or parameter.value.fields.len != 0 or parameter.value.bound != 0) return error.ProgramTypeMismatch;
         switch (parameter.value.kind) {
             .boolean, .integer, .text, .binary, .uuid, .timestamp, .duration, .json => {},
             else => return error.ProgramTypeMismatch,
@@ -169,6 +173,7 @@ fn cloneFields(allocator: std.mem.Allocator, fields: []const Field, depth: usize
     if (depth == ast.max_depth or fields.len > ast.max_arguments) return error.ProgramTooComplex;
     const result = try allocator.alloc(Field, fields.len);
     for (fields, result, 0..) |source, *target, index| {
+        if (source.value.kind == .rows or source.value.bound != 0) return error.ProgramTypeMismatch;
         if (source.name.len == 0 or source.name.len > 255) return error.InvalidColumnName;
         for (fields[0..index]) |prior| if (std.mem.eql(u8, source.name, prior.name)) return error.DuplicateProgramField;
         target.* = source;
@@ -245,16 +250,28 @@ fn record(self: *Self, resource_: Resource, nullable: bool) !Value {
 fn select(self: *Self, query: ast.Select) !Value {
     const source = try self.resource(query.schema, query.target, null, .{ .resource = 0, .read = true });
     if (source.kind != .table and source.kind != .document) return error.ProgramResourceKindMismatch;
+    if (query.many) |many| {
+        if (source.kind != .table or source.key.len != 1 or !std.mem.eql(u8, source.key[0], many.order)) return error.InvalidProgramCollection;
+        if (source.many_order == null or !std.mem.eql(u8, source.many_order.?, many.order)) return error.InvalidProgramCollection;
+        const key = try field(.{ .kind = .record, .fields = source.fields }, many.order);
+        if (key.kind != .integer or key.nullable or key.protected) return error.InvalidProgramCollection;
+    }
     const previous = self.columns;
     self.columns = source.fields;
     defer self.columns = previous;
     if (query.predicate) |predicate| try requireKind(try self.expression(predicate), .boolean);
-    if (query.columns) |names| {
+    var result = if (query.columns) |names| blk: {
         const fields = try self.allocator.alloc(Field, names.len);
         for (names, fields) |name, *entry| entry.* = .{ .name = try self.allocator.dupe(u8, name), .value = try field(.{ .kind = .record, .fields = source.fields }, name) };
-        return .{ .kind = .record, .fields = fields, .nullable = true };
+        break :blk Value{ .kind = .record, .fields = fields, .nullable = true };
+    } else try self.record(source, true);
+    if (query.many) |many| {
+        result.kind = .rows;
+        result.nullable = false;
+        result.bound = many.bound;
+        try public(result);
     }
-    return self.record(source, true);
+    return result;
 }
 fn expression(self: *Self, node: *const ast.Expression) anyerror!Value {
     if (self.expression_depth == ast.max_depth) return error.ProgramTooDeep;
@@ -278,6 +295,7 @@ fn expression(self: *Self, node: *const ast.Expression) anyerror!Value {
         .call => |invocation| try self.call(invocation.function, invocation.arguments),
         .unary => |unary| blk: {
             const operand = try self.expression(unary.operand);
+            if (operand.kind == .rows) return error.ProgramTypeMismatch;
             switch (unary.operator) {
                 .not_ => try requireKind(operand, .boolean),
                 .negate => try requireKind(operand, .integer),
@@ -288,6 +306,7 @@ fn expression(self: *Self, node: *const ast.Expression) anyerror!Value {
         .binary => |binary| blk: {
             const left = try self.expression(binary.left);
             const right = try self.expression(binary.right);
+            if (left.kind == .rows or right.kind == .rows) return error.ProgramTypeMismatch;
             var kind: Kind = .boolean;
             switch (binary.operator) {
                 .and_, .or_ => {
@@ -319,6 +338,7 @@ fn expression(self: *Self, node: *const ast.Expression) anyerror!Value {
             try requireKind(condition, .boolean);
             var yes = try self.expression(choice.yes);
             const no = try self.expression(choice.no);
+            if (yes.kind == .rows or no.kind == .rows) return error.ProgramTypeMismatch;
             const nullable = yes.kind == .null or no.kind == .null or yes.nullable or no.nullable;
             if (yes.kind == .null) yes = no else if (no.kind != .null and yes.kind != no.kind) return error.ProgramTypeMismatch;
             yes.nullable = nullable;
@@ -333,7 +353,11 @@ fn expression(self: *Self, node: *const ast.Expression) anyerror!Value {
         },
         .row => |items| blk: {
             const fields = try self.allocator.alloc(Field, items.len);
-            for (items, fields) |item, *entry| entry.* = .{ .name = "", .value = try self.expression(item) };
+            for (items, fields) |item, *entry| {
+                const value = try self.expression(item);
+                if (value.kind == .rows) return error.ProgramTypeMismatch;
+                entry.* = .{ .name = "", .value = value };
+            }
             break :blk .{ .kind = .record, .fields = fields };
         },
     };
@@ -359,7 +383,10 @@ fn call(self: *Self, function: ast.Function, arguments: []const *ast.Expression)
     }
     var values: [ast.max_arguments]Value = undefined;
     if (arguments.len > values.len) return error.ProgramArgumentMismatch;
-    for (arguments, values[0..arguments.len]) |argument, *value| value.* = try self.expression(argument);
+    for (arguments, values[0..arguments.len]) |argument, *value| {
+        value.* = try self.expression(argument);
+        if (value.kind == .rows) return error.ProgramTypeMismatch;
+    }
     const args = values[0..arguments.len];
     const arity: ?usize = switch (function) {
         .now => 0,
@@ -521,6 +548,19 @@ fn block(self: *Self, instructions: []const ast.Instruction) anyerror!void {
                 try self.block(conditional.yes);
                 self.symbols.shrinkRetainingCapacity(count);
                 try self.block(conditional.no);
+                self.symbols.shrinkRetainingCapacity(count);
+            },
+            .iteration => |loop| {
+                const collection: Value = blk: {
+                    for (self.symbols.items) |symbol| if (std.mem.eql(u8, symbol.name, loop.collection)) break :blk symbol.value;
+                    return error.UnknownProgramVariable;
+                };
+                if (collection.kind != .rows or collection.nullable or collection.bound == 0) return error.InvalidProgramCollection;
+                const row: Value = .{ .kind = .record, .fields = collection.fields };
+                self.values[instruction.id] = row;
+                const count = self.symbols.items.len;
+                try self.define(loop.name, row);
+                try self.block(loop.body);
                 self.symbols.shrinkRetainingCapacity(count);
             },
             .put => |put| {
@@ -777,4 +817,53 @@ test "application program types distinguish cross-schema resources with shared l
     var bound = try bind(t.allocator, parsed.program, &cross_resources, null);
     defer bound.deinit();
     try t.expectEqual(@as(usize, 4), bound.uses.len);
+}
+
+test "bounded many binds immutable present iterators and preserves nullable fields" {
+    const t = std.testing;
+    const source = "CREATE DATAFLOW act FROM QUEUE jobs AS request AS BEGIN BEGIN ATOMIC LET batch MANY(3) = SELECT id, note FROM items ORDER BY id ASC; LET alias = batch; FOR item IN alias DO LET present = item.id; REQUIRE item.note IS NULL ELSE 'HasNote'; END FOR; END; END;";
+    var parsed = try ast.parse(t.allocator, source, null);
+    defer parsed.deinit();
+    const resources = [_]Resource{
+        .{ .name = "jobs", .kind = .queue, .fields = &.{} },
+        .{ .name = "items", .kind = .table, .fields = &.{ .{ .name = "id", .value = Value.public(.integer) }, .{ .name = "note", .value = .{ .kind = .text, .nullable = true } } }, .key = &.{"id"}, .many_order = "id" },
+    };
+    var bound = try bind(t.allocator, parsed.program, &resources, null);
+    defer bound.deinit();
+    const block_ = parsed.program.body.instructions[0].value.atomic;
+    const collection = bound.values[block_[0].id].?;
+    try t.expectEqual(.rows, collection.kind);
+    try t.expectEqual(@as(u8, 3), collection.bound);
+    try t.expect(!collection.nullable);
+    try t.expect(collection.fields[1].value.nullable);
+    try t.expectEqualDeep(collection, bound.values[block_[1].id].?);
+    const iterator = bound.values[block_[2].id].?;
+    try t.expectEqual(.record, iterator.kind);
+    try t.expect(!iterator.nullable);
+    try t.expectEqualDeep(collection.fields, iterator.fields);
+    try t.expectEqual(@as(u32, 16), try ast.Codec.executionLimit(parsed.program));
+    var wrong = resources;
+    wrong[1].many_order = null; // A narrower integer key has no admitted total-order descriptor.
+    try t.expectError(error.InvalidProgramCollection, bind(t.allocator, parsed.program, &wrong, null));
+    wrong = resources;
+    wrong[1].kind = .document;
+    try t.expectError(error.InvalidProgramCollection, bind(t.allocator, parsed.program, &wrong, null));
+}
+
+test "bounded many rejects collection scalar coercions and escaped iterators in every arm" {
+    const t = std.testing;
+    const resources = [_]Resource{
+        .{ .name = "jobs", .kind = .queue, .fields = &.{} },
+        .{ .name = "items", .kind = .table, .fields = &.{.{ .name = "id", .value = Value.public(.integer) }}, .key = &.{"id"}, .many_order = "id" },
+    };
+    for ([_][]const u8{ "LET x = batch IS NULL;", "LET x = ROW(batch);", "LET x = JSON_OBJECT('rows', batch);", "LET x = batch.id;", "IF FALSE THEN LET x = batch + 1; END IF;" }) |body| {
+        const sql_ = try std.fmt.allocPrint(t.allocator, "CREATE DATAFLOW act FROM QUEUE jobs AS request AS BEGIN BEGIN ATOMIC LET batch MANY(2) = SELECT id FROM items ORDER BY id; {s} END; END;", .{body});
+        defer t.allocator.free(sql_);
+        var parsed = try ast.parse(t.allocator, sql_, null);
+        defer parsed.deinit();
+        try t.expectError(error.ProgramTypeMismatch, bind(t.allocator, parsed.program, &resources, null));
+    }
+    var escaped = try ast.parse(t.allocator, "CREATE DATAFLOW act FROM QUEUE jobs AS request AS BEGIN BEGIN ATOMIC LET batch MANY(2) = SELECT id FROM items ORDER BY id; FOR item IN batch DO LET local = item.id; END FOR; LET x = item.id; END; END;", null);
+    defer escaped.deinit();
+    try t.expectError(error.UnknownProgramVariable, bind(t.allocator, escaped.program, &resources, null));
 }

@@ -357,6 +357,55 @@ def queue_program(fixture):
     print('Managed SQL: lowered Queue program, explicit executor, ordered atomic outputs, retained restart and retirement verified.', flush=True)
 
 
+def bounded_many(fixture):
+    """Handwritten SQL expectations; no source compiler or generated SQL input."""
+    fixture.console("""
+      CREATE TABLE many_items (id BIGINT PRIMARY KEY, batch BIGINT NOT NULL, note TEXT);
+      CREATE QUEUE many_requests (id BIGINT NOT NULL, batch BIGINT NOT NULL, reject BOOLEAN NOT NULL);
+      CREATE STREAM many_events (request BIGINT NOT NULL, id BIGINT NOT NULL, note TEXT);
+      INSERT INTO many_items VALUES (3, 1, 'same'), (1, 1, 'same'), (2, 2, NULL),
+        (6, 3, 'six'), (4, 3, NULL), (5, 3, 'five'),
+        (10, 4, 'ten'), (7, 4, 'seven'), (9, 4, 'nine'), (8, 4, 'eight');
+      CREATE DATAFLOW many_route FROM QUEUE many_requests AS request AS BEGIN
+        BEGIN ATOMIC
+          LET selected MANY(3) = SELECT id, note FROM many_items
+            WHERE batch = request.batch ORDER BY id;
+          LET batch = selected;
+          FOR item IN batch DO
+            REQUIRE NOT request.reject OR item.id <> 5 ELSE 'LateRefusal';
+            PRODUCE INTO many_events VALUES (request.id, item.id, item.note);
+          END FOR;
+        END;
+      END;
+      AUTHORIZE DATAFLOW many_route AS ROLE CURRENT_ROLE;
+      ACTIVATE DATAFLOW many_route;
+    """)
+    expected = []
+    completed = refused = 0
+    cases = [(0, False, []), (2, False, [(2, None)]),
+             (1, False, [(1, 'same'), (3, 'same')]),
+             (3, False, [(4, None), (5, 'five'), (6, 'six')]),
+             (4, False, None), (3, True, None)]
+    for request, (batch, reject, output) in enumerate(cases, 1):
+        fixture.console(f'ENQUEUE INTO many_requests VALUES ({request}, {batch}, {str(reject).upper()});')
+        completed += output is not None
+        refused += output is None
+        head = await_head(fixture, 'many_route', lambda h: h['completed'] + h['refused'] >= request)['observation']['head']
+        assert (head['completed'], head['refused']) == (completed, refused), head
+        expected.extend(dict(request=str(request), id=str(identity), note=note) for identity, note in output or [])
+        actual = records(fixture.console('CONSUME * FROM many_events;')[-1])
+        assert actual == expected, (actual, expected)
+    program_control(fixture, 'SUSPEND DATAFLOW many_route')
+    await_head(fixture, 'many_route', lambda h: h['pending'] is None)
+    fixture.stop(kill=True)
+    fixture.start()
+    fixture.ready()
+    assert records(fixture.console('CONSUME * FROM many_events;')[-1]) == expected
+    program_control(fixture, 'RETIRE DATAFLOW many_route')
+    await_head(fixture, 'many_route', lambda h: h['retirement_complete'])
+    print('Managed SQL MANY: empty/one/several/exact/over-bound, NULL, ordered duplicates, late rollback and restart passed.', flush=True)
+
+
 def run(cli, node, host, board, gateway):
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
     os.environ['TEST_TRANSIT_BOARD_BINARY'] = str(Path(board).resolve())
@@ -428,6 +477,7 @@ def run(cli, node, host, board, gateway):
             client.close()
         page_boundaries(fixture)
         queue_program(fixture)
+        bounded_many(fixture)
         fixture.console('CREATE TABLE failed_input (id BIGINT NOT NULL);\nCREATE TABLE failed_output (id BIGINT PRIMARY KEY);\nINSERT INTO failed_input (id) VALUES (1),(1);\nCREATE DATAFLOW failed_projection INTO failed_output AS SELECT id FROM failed_input;\nAUTHORIZE DATAFLOW failed_projection;\nACTIVATE DATAFLOW failed_projection;\n')
         failed = await_head(fixture, 'failed_projection', lambda head: head['blocked'] == 'execution_failed' and head['pending'] is None)['observation']['head']
         assert failed['revision'] == 0

@@ -15887,7 +15887,7 @@
     },
     "packages/zig/transit-fuze/src/ApplicationCursor.zig": {
       "errors": {
-        "InvalidProgramNode": 29,
+        "InvalidProgramNode": 35,
         "NestedAtomicProgram": 1
       },
       "outcomes": {
@@ -15895,6 +15895,7 @@
           "instruction",
           "enter_atomic",
           "branch",
+          "iteration",
           "leave",
           "page"
         ],
@@ -15903,7 +15904,8 @@
           "failure",
           "atomic",
           "yes",
-          "no"
+          "no",
+          "iteration"
         ],
         "Event": [
           "instruction",
@@ -15935,7 +15937,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 13,
+        "try": 15,
         "catch": 0
       },
       "imports": [
@@ -15946,7 +15948,7 @@
     "packages/zig/transit-fuze/src/ApplicationEnvironment.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidProgramNode": 14,
+        "InvalidProgramNode": 18,
         "UnknownProgramVariable": 1
       },
       "outcomes": {},
@@ -15960,13 +15962,14 @@
         "fail()": "<inferred>",
         "init()": "<inferred>",
         "lookup()": "<inferred>",
+        "lookupBinding()": "<inferred>",
         "refuse()": "<inferred>",
         "restore()": "<inferred>",
         "validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 27,
+        "try": 33,
         "catch": 0
       },
       "imports": [
@@ -16039,6 +16042,7 @@
     },
     "packages/zig/transit-fuze/src/ApplicationStep.zig": {
       "errors": {
+        "InvalidProgramCollection": 1,
         "InvalidProgramNode": 1,
         "ProgramTypeMismatch": 3,
         "UnknownProgramVariable": 1
@@ -16094,7 +16098,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 40,
+        "try": 41,
         "catch": 1
       },
       "imports": [
@@ -18105,6 +18109,7 @@
         "InvalidPredicate": 1,
         "InvalidPredicateProgram": 1,
         "InvalidPrimaryKey": 1,
+        "InvalidProgramCollection": 1,
         "InvalidProgramCookie": 1,
         "InvalidProgramNode": 1,
         "InvalidProgramPage": 1,
@@ -18261,6 +18266,7 @@
         "UnsupportedNullComparison": 1,
         "UnsupportedPrimaryKeyType": 1,
         "UnsupportedProgramInstruction": 1,
+        "UnsupportedProgramIteration": 1,
         "UnsupportedProgramProfile": 1,
         "UnsupportedRangeSubtype": 1,
         "UnsupportedRelationalPredicate": 1,
@@ -22084,7 +22090,7 @@
           "deadline"
         ],
         "Definition": [
-          "ad3bc9aef1bc97a05c8a1ce5ea511a1d5185ebbb00f256eeec1ef287517e83ff"
+          "dd6352c075f480dabbc2d1349cc79c9a5c85687ecafd33055d6a2d56f28251d0"
         ],
         "Effect.phase": [
           "pending",
@@ -23805,7 +23811,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 30,
+        "try": 31,
         "catch": 0
       },
       "imports": [
@@ -23816,19 +23822,21 @@
     "packages/zig/transit-query-direct/src/ApplicationData.zig": {
       "errors": {
         "DuplicateProgramField": 1,
+        "InvalidProgramCollection": 2,
         "InvalidQueryBudget": 1,
         "InvalidRowIdentity": 1,
         "InvalidTableResponse": 2,
-        "InvalidTransactionGuard": 5,
+        "InvalidTransactionGuard": 6,
         "Overflow": 2,
-        "ProgramCardinalityMismatch": 1,
+        "ProgramCardinalityMismatch": 2,
         "ProgramResourceKindMismatch": 3,
         "ProgramRowAssertionFailed": 2,
         "ProgramTooComplex": 1,
         "ProgramTooDeep": 1,
         "ProgramTypeMismatch": 23,
         "ProtectedProgramValue": 1,
-        "QueryResultBudget": 2,
+        "QueryPageBudget": 1,
+        "QueryResultBudget": 4,
         "TableDefinitionChanged": 7,
         "UnknownProgramField": 2,
         "WriteFailed": 1
@@ -23836,9 +23844,13 @@
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "ManyRows.charge()": "<inferred>",
+        "ManyRows.finish()": "<inferred>",
+        "ManyRows.ownedBytes()": "anyerror",
         "RowContext.condition()": "anyerror",
         "RowContext.evaluate()": "anyerror",
         "RowContext.lookup()": "anyerror",
+        "SelectUsage.validate()": "<inferred>",
         "assertSameRow()": "<inferred>",
         "currentRevision()": "<inferred>",
         "currentRevisionObserved()": "<inferred>",
@@ -23854,11 +23866,12 @@
         "preparePut()": "<inferred>",
         "rowCells()": "<inferred>",
         "rowValue()": "<inferred>",
-        "select()": "<inferred>"
+        "select()": "<inferred>",
+        "selectObserved()": "<inferred>"
       },
-      "open_error_set_uses": 5,
+      "open_error_set_uses": 6,
       "propagation": {
-        "try": 91,
+        "try": 104,
         "catch": 1
       },
       "imports": [
@@ -24052,11 +24065,11 @@
         "EffectInsideAtomic": 2,
         "IncompatibleDefinition": 1,
         "InvalidApplicationEffect": 19,
-        "InvalidDirectRecord": 48,
+        "InvalidDirectRecord": 49,
         "InvalidProgramJson": 1,
         "InvalidProgramNode": 4,
         "InvalidQueueResponse": 4,
-        "InvalidTransactionGuard": 4,
+        "InvalidTransactionGuard": 5,
         "NestedAtomicProgram": 2,
         "Overflow": 1,
         "OwnedRecordClosed": 6,
@@ -24070,7 +24083,7 @@
         "ProgramTooDeep": 1,
         "ProgramTypeMismatch": 1,
         "ProtectedProgramValue": 1,
-        "QueryPageBudget": 1,
+        "QueryPageBudget": 2,
         "QueryResultBudget": 6,
         "QueueLeaseExpired": 1,
         "QueueTimeUnavailable": 1,
@@ -24205,7 +24218,7 @@
       },
       "open_error_set_uses": 7,
       "propagation": {
-        "try": 229,
+        "try": 231,
         "catch": 8
       },
       "imports": [
@@ -24292,7 +24305,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 115,
+        "try": 117,
         "catch": 3
       },
       "imports": [
@@ -24381,7 +24394,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 47,
+        "try": 48,
         "catch": 0
       },
       "imports": [
@@ -31288,6 +31301,7 @@
           "require",
           "atomic",
           "conditional",
+          "iteration",
           "put",
           "insert",
           "append",
@@ -31346,13 +31360,15 @@
         "DuplicateProgramField": 2,
         "EffectInsideAtomic": 1,
         "IncompatibleDefinition": 1,
+        "InvalidProgramCollection": 2,
         "InvalidProgramCookie": 2,
         "InvalidProgramNode": 6,
         "InvalidProgramStatus": 1,
         "MutationOutsideAtomic": 4,
         "NestedAtomicProgram": 1,
-        "ProgramTooComplex": 11,
-        "ProgramTooDeep": 2
+        "ProgramTooComplex": 15,
+        "ProgramTooDeep": 2,
+        "UnsupportedProgramIteration": 8
       },
       "outcomes": {},
       "error_sets": {},
@@ -31366,12 +31382,14 @@
         "Validator.text()": "<inferred>",
         "decode()": "<inferred>",
         "encode()": "<inferred>",
+        "executionLimit()": "<inferred>",
+        "executionLimit().Work.block()": "anyerror",
         "validate()": "<inferred>",
         "validateEncoding()": "<inferred>"
       },
-      "open_error_set_uses": 2,
+      "open_error_set_uses": 3,
       "propagation": {
-        "try": 86,
+        "try": 98,
         "catch": 0
       },
       "imports": [
@@ -31386,6 +31404,7 @@
         "EffectInsideAtomic": 1,
         "InvalidBinaryLiteral": 2,
         "InvalidColumnName": 2,
+        "InvalidProgramCollection": 4,
         "InvalidProgramCookie": 1,
         "InvalidProgramPage": 3,
         "InvalidProgramStatus": 3,
@@ -31399,6 +31418,7 @@
         "UnknownProgramFunction": 1,
         "UnsupportedConstruct": 1,
         "UnsupportedProgramInstruction": 1,
+        "UnsupportedProgramIteration": 3,
         "UnterminatedSqlToken": 1
       },
       "outcomes": {},
@@ -31432,8 +31452,8 @@
       },
       "open_error_set_uses": 5,
       "propagation": {
-        "try": 264,
-        "catch": 5
+        "try": 280,
+        "catch": 7
       },
       "imports": [
         "ApplicationProgram.zig",
@@ -31450,17 +31470,18 @@
         "DuplicateProgramResource": 1,
         "DuplicateProgramVariable": 2,
         "InvalidColumnName": 2,
+        "InvalidProgramCollection": 4,
         "InvalidProgramNode": 1,
         "ProgramArgumentMismatch": 9,
         "ProgramNullabilityMismatch": 1,
         "ProgramResourceKindMismatch": 2,
         "ProgramTooComplex": 2,
         "ProgramTooDeep": 1,
-        "ProgramTypeMismatch": 20,
+        "ProgramTypeMismatch": 26,
         "ProtectedProgramValue": 4,
         "UnknownProgramField": 2,
         "UnknownProgramResource": 1,
-        "UnknownProgramVariable": 2,
+        "UnknownProgramVariable": 3,
         "UnsupportedProgramProfile": 2
       },
       "outcomes": {
@@ -31475,6 +31496,7 @@
           "duration",
           "json",
           "record",
+          "rows",
           "secret",
           "protected_json",
           "capability",
@@ -31519,7 +31541,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 155,
+        "try": 161,
         "catch": 0
       },
       "imports": [
@@ -31556,12 +31578,13 @@
     "packages/zig/transit-sql-frontend/src/ApplicationValue.zig": {
       "errors": {
         "InvalidCharacter": 3,
+        "InvalidProgramCollection": 1,
         "InvalidSqlEncoding": 1,
         "LengthMismatch": 1,
         "ProgramNullabilityMismatch": 1,
-        "ProgramTooComplex": 3,
+        "ProgramTooComplex": 4,
         "ProgramTooDeep": 3,
-        "ProgramTypeMismatch": 7,
+        "ProgramTypeMismatch": 9,
         "ProtectedProgramValue": 2,
         "UnexpectedToken": 2,
         "UnknownField": 1,
@@ -31580,6 +31603,7 @@
           "duration",
           "json",
           "record",
+          "rows",
           "secret",
           "protected_json",
           "capability",
@@ -31604,7 +31628,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 23,
+        "try": 26,
         "catch": 2
       },
       "imports": [
@@ -37798,6 +37822,7 @@
         "InvalidLogRetention": 1,
         "InvalidLogSettlementOperand": 1,
         "InvalidLogVisibilityTime": 1,
+        "InvalidProgramCollection": 1,
         "InvalidQueueBackoff": 1,
         "InvalidQueueDestination": 1,
         "InvalidQueueLeaseDuration": 1,
@@ -37909,6 +37934,7 @@
         "UnsupportedPostgresCatalogPattern": 1,
         "UnsupportedPostgresCatalogQuery": 1,
         "UnsupportedPostgresTableDescription": 1,
+        "UnsupportedProgramIteration": 1,
         "UnsupportedProgramMigration": 1,
         "UnsupportedProgramPartitioning": 1,
         "UnsupportedProgramRevision": 1,

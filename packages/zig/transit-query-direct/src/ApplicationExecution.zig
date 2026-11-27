@@ -205,13 +205,14 @@ pub const State = struct {
     acknowledged: bool,
     terminal: ?p.Transaction.Decision,
     retained_bytes: u64,
+    many_usage: q.ApplicationData.SelectUsage,
     failure: ?Failure,
     aborting: ?Failure,
     completion: ?c.DirectTransactionWorkspace.StatementCompletion,
     cancelled: bool,
     effect: ?struct { descriptor: E.Descriptor, outcome: ?E.Outcome, withdrawn: ?T.Fence },
     pub fn initial() State {
-        return .{ .phase = .evaluate, .current = null, .candidate = null, .transaction = null, .statement = null, .purpose = .instruction, .basis = null, .checkpoint = null, .boundary = null, .atomic_aborted = false, .acknowledged = false, .terminal = null, .retained_bytes = 0, .failure = null, .aborting = null, .completion = null, .cancelled = false, .effect = null };
+        return .{ .phase = .evaluate, .current = null, .candidate = null, .transaction = null, .statement = null, .purpose = .instruction, .basis = null, .checkpoint = null, .boundary = null, .atomic_aborted = false, .acknowledged = false, .terminal = null, .retained_bytes = 0, .many_usage = q.ApplicationData.SelectUsage.zero, .failure = null, .aborting = null, .completion = null, .cancelled = false, .effect = null };
     }
     fn effectEvidence(self: State) !?EffectResult {
         const effect = self.effect orelse return null;
@@ -271,6 +272,7 @@ pub const Candidate = struct {
     instruction: a.Id,
     transaction: ?T.Key,
     environment: a.Environment.Snapshot,
+    many_usage: q.ApplicationData.SelectUsage,
     basis: ?d.Position,
     sequence: u64,
     action: union(enum) {
@@ -394,6 +396,7 @@ fn load(self: Self, client: c.DirectTableClient, value: M.Declaration, work: I.W
     var index = try a.Cursor.Index.init(client.allocator, &value.program);
     defer index.deinit();
     try a.Environment.validate(index, bound, try value.digest(client.allocator), candidate.environment);
+    try candidate.many_usage.validate(.{ .requests = value.limits.requests, .scan_rows = value.limits.scan_rows, .result_bytes = value.limits.result_bytes });
     switch (candidate.action) {
         .effect => |request| {
             if (candidate.transaction != null or candidate.basis != null or candidate.sequence != 0 or
@@ -470,6 +473,9 @@ fn startTransaction(self: Self, client: c.DirectTableClient, value: M.Declaratio
 }
 fn adopt(self: Self, client: c.DirectTableClient, value: M.Declaration, work: *I.Work, reference: R.Reference, candidate: Candidate) !void {
     if (!std.meta.eql(candidate.previous, work.execution.current)) return error.InvalidDirectRecord;
+    try candidate.many_usage.validate(.{ .requests = value.limits.requests, .scan_rows = value.limits.scan_rows, .result_bytes = value.limits.result_bytes });
+    if (!candidate.many_usage.follows(work.execution.many_usage)) return error.InvalidDirectRecord;
+    work.execution.many_usage = candidate.many_usage;
     work.execution.retained_bytes = try std.math.add(u64, work.execution.retained_bytes, reference.content.bytes);
     switch (candidate.action) {
         .advance, .failure, .effect_result => {
@@ -805,6 +811,7 @@ fn evaluate(self: Self, client: c.DirectTableClient, value: M.Declaration, work:
         .instruction = 0,
         .transaction = if (work.execution.transaction) |transaction| transaction.key else null,
         .environment = undefined,
+        .many_usage = work.execution.many_usage,
         .basis = null,
         .sequence = 0,
         .action = .advance,
@@ -877,10 +884,16 @@ fn evaluate(self: Self, client: c.DirectTableClient, value: M.Declaration, work:
         .select => |select| {
             if (work.execution.transaction == null) return self.startTransaction(client, value, work, step.step, .read);
             const binding = try resource(value, select.schema, select.target);
+            if (select.many != null) {
+                if (work.execution.transaction.?.kind != .atomic) return error.InvalidTransactionGuard;
+                if (work.execution.many_usage.requests > value.limits.requests or value.limits.requests - work.execution.many_usage.requests < 2) return error.QueryPageBudget;
+                work.execution.many_usage.requests += 2;
+            }
             const response = try Native.table(private, binding);
             defer response.deinit();
             const metadata = try Native.tableMetadata(response.value.result);
-            outcome = .{ .value = try q.ApplicationData.select(allocator, &rows, &driver, private, metadata, try Native.snapshot(metadata), select, .{ .requests = value.limits.requests, .scan_rows = value.limits.scan_rows, .result_bytes = value.limits.result_bytes }) };
+            outcome = .{ .value = try q.ApplicationData.selectObserved(allocator, &rows, &driver, private, metadata, try Native.snapshot(metadata), select, .{ .requests = value.limits.requests, .scan_rows = value.limits.scan_rows, .result_bytes = value.limits.result_bytes }, &work.execution.many_usage) };
+            candidate.many_usage = work.execution.many_usage;
         },
         .put => |put| {
             if (private.transaction == null) return error.InvalidTransactionGuard;
@@ -1387,4 +1400,39 @@ test "application host bindings release their own context when another borrow re
     scope.step = 2;
     try t.expectError(error.InvalidProgramNode, host.bind(host.context, scope));
     try t.expect(factory.slots[0].scope == null and factory.slots[1].scope == null);
+}
+
+test "application continuations cannot reset accounting by omitting saved counters" {
+    const t = std.testing;
+    var original = State.initial();
+    original.many_usage = .{ .requests = 9, .scan_rows = 3, .result_bytes = 512 };
+    const candidate: Candidate = .{
+        .definition = p.Growth.current_definition,
+        .invocation = .{ .definition = p.Growth.current_definition, .connection = .{ .scope = .{ .realm = 42, .resource = 3, .catalog = 9 }, .branch = 1, .audience = 5, .principal = 4, .role = 6 }, .account = @splat(1), .token = @splat(2) },
+        .previous = null,
+        .step = 42,
+        .instruction = 0,
+        .transaction = null,
+        .environment = .{ .definition = p.Growth.current_definition, .binding_digest = @splat(3), .cursor = .{ .phase = .complete, .step = 42, .frames = &.{} }, .values = &.{} },
+        .many_usage = original.many_usage,
+        .basis = null,
+        .sequence = 0,
+        .action = .advance,
+    };
+    // Exercise both persisted record shapes, before their separate semantic
+    // ownership/continuation validation. Neither decoder may invent accounting.
+    inline for (.{ original, candidate }) |saved| {
+        const Saved = @TypeOf(saved);
+        const encoded = try p.Json.valueAlloc(t.allocator, saved);
+        defer t.allocator.free(encoded);
+        const restored = try p.Json.parseFromSliceOwned(Saved, t.allocator, encoded);
+        defer restored.deinit();
+        try t.expectEqualDeep(saved, restored.value);
+        var tree = try std.json.parseFromSlice(std.json.Value, t.allocator, encoded, .{});
+        defer tree.deinit();
+        try t.expect(tree.value.object.swapRemove("many_usage"));
+        const missing = try p.Json.valueAlloc(t.allocator, tree.value);
+        defer t.allocator.free(missing);
+        try t.expectError(error.MissingField, p.Json.parseFromSliceOwned(Saved, t.allocator, missing));
+    }
 }
